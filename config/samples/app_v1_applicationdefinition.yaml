@@ -1,0 +1,9 @@
+apiVersion: app.infini.cloud/v1
+kind: ApplicationDefinition
+metadata:
+  labels:
+    app.kubernetes.io/name: infini-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: applicationdefinition-sample
+spec:
+  # TODO(user): Add fields here

@@ -1,0 +1,9 @@
+apiVersion: core.infini.cloud/v1
+kind: ComponentDefinition
+metadata:
+  labels:
+    app.kubernetes.io/name: infini-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: componentdefinition-sample
+spec:
+  # TODO(user): Add fields here
