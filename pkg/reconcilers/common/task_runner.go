@@ -4,10 +4,14 @@ package common
 import (
 	"context"
 	"fmt"
-	"reflect" // For getting Task type name
+	"reflect"
 	"strings"
+	"time"
+
+	// For ApplyResult type
 
 	appv1 "github.com/infinilabs/operator/api/app/v1"
+	"github.com/infinilabs/operator/internal/controller/common/kubeutil"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -15,93 +19,121 @@ import (
 )
 
 // TaskRunner executes a list of Tasks for a specific component.
+// It prepares the TaskContext and iterates through the task list, handling results.
 type TaskRunner struct {
 	Client   client.Client
 	Scheme   *runtime.Scheme
-	Recorder record.EventRecorder // For recording events
-
-	// Task implementations registry might be needed here or accessible.
-	// For simplicity, the TaskRunner could receive the Task implementations list directly.
+	Recorder record.EventRecorder
+	// TaskRegistry can be added here if tasks are looked up by name/type string
+	// taskRegistry map[string]TaskFactory // Factory returns new Task instance
 }
 
-// RunTasks executes a sequence of tasks for a component instance.
-// It receives a list of Task Implementations (concrete structs implementing Task interface).
-// appDef is the overall application (owner). appComp is the specific component.
-// componentStatus is the status entry for THIS component instance (mutable).
-// taskSpecificData (Optional) - If tasks need access to pre-calculated data or config specific to THIS task execution (e.g. specific objects to apply).
-func (r *TaskRunner) RunTasks(ctx context.Context, appDef *appv1.ApplicationDefinition, appComp *appv1.ApplicationComponent, componentStatus *appv1.ComponentStatusReference, taskList []Task) (TaskResult, error) {
-	logger := log.FromContext(ctx).WithValues("component", appComp.Name, "type", appComp.Type) // Logger for this component
-	owner := appDef                                                                            // ApplicationDefinition is the owner
+// NewTaskRunner creates a new TaskRunner instance.
+func NewTaskRunner(client client.Client, scheme *runtime.Scheme, recorder record.EventRecorder) *TaskRunner {
+	return &TaskRunner{
+		Client:   client,
+		Scheme:   scheme,
+		Recorder: recorder,
+	}
+}
 
-	// --- Prepare Task Context (Shared across all tasks run by THIS runner) ---
+// RunTasks executes a sequence of predefined Task implementations.
+// It orchestrates the execution flow based on task results.
+// owner: The owning ApplicationDefinition CR.
+// taskContext: Pre-populated context for this component's reconcile run.
+// taskList: Slice of Task interface implementations to execute sequentially.
+// Returns the final TaskResult (Pending if any task is pending, Failed if any task fails critically, Complete otherwise)
+// and the first critical error encountered during task execution.
+func (r *TaskRunner) RunTasks(
+	ctx context.Context,
+	owner client.Object, // Pass owner (AppDef)
+	appComp *appv1.ApplicationComponent,
+	componentStatus *appv1.ComponentStatusReference,
+	mergedConfig interface{},
+	desiredObjects map[string]client.Object, // Pass map
+	applyResults map[string]kubeutil.ApplyResult, // Pass map
+	taskList []Task,
+) (TaskResult, error) {
+	logger := log.FromContext(ctx).WithValues("component", appComp.Name, "type", appComp.Type)
+
+	if len(taskList) == 0 {
+		return TaskResultComplete, nil
+	}
+
+	var firstError error
+	overallResult := TaskResultComplete
+
+	// --- Prepare Task Context (NOW includes Client, Scheme, Owner) ---
 	taskContext := &TaskContext{
-		Logger:          logger, // Task-specific logger (component context)
-		AppDef:          appDef,
+		Client:          r.Client,   // Populate from TaskRunner
+		Scheme:          r.Scheme,   // Populate from TaskRunner
+		Owner:           owner,      // Populate from owner passed to RunTasks
+		Recorder:        r.Recorder, // Populate from TaskRunner
+		Logger:          logger,
+		AppDef:          owner.(*appv1.ApplicationDefinition), // Type assert owner
 		AppComp:         appComp,
-		ComponentStatus: componentStatus, // Mutable status pointer
-		// Add other context info populated by main controller BEFORE calling runner
-		// e.g., DesiredObjects (list), AppliedObjects, ApplyResults map, unmarshalledAppSpecificConfig etc.
-		Recorder: r.Recorder, // Recorder for events
+		ComponentStatus: componentStatus,
+		MergedConfig:    mergedConfig,
+		DesiredObjects:  desiredObjects, // Pass the maps
+		ApplyResults:    applyResults,
 	}
 
 	for _, task := range taskList {
-		// Use a unique name for this task instance for logging
-		taskName := reflect.TypeOf(task).Elem().String() // Example task name (removes pointer indicator *)
-		// Clean up TaskName if it includes package path for logging
-		taskNameParts := strings.Split(taskName, ".")
-		if len(taskNameParts) > 0 {
-			taskName = taskNameParts[len(taskNameParts)-1]
-		} // Use just the type name
-
+		taskName := getTaskName(task)
 		taskLogger := logger.WithValues("task", taskName)
-		taskLogger.V(1).Info("Starting task execution")
+		taskContext.Logger = taskLogger // Update logger for this task
 
-		// --- Execute the current task ---
-		// taskContext is passed by reference, so tasks can update the ComponentStatus message.
-		taskResult, err := task.Execute(ctx, r.Client, r.Scheme, owner, taskContext)
-		// --- Task execution finished ---
+		startTime := time.Now()
+		taskLogger.V(1).Info("Executing task")
 
-		// --- Handle task results and errors ---
+		// *** UPDATED Execute Call ***
+		// Call Execute with only ctx and taskContext
+		taskResult, err := task.Execute(ctx, taskContext) // Pass the updated context
+
+		duration := time.Since(startTime)
+		taskLogger.V(1).Info("Task execution finished", "result", taskResult, "error", err, "duration", duration.String())
+
+		// Handle task outcome (logic remains the same)
 		if err != nil {
-			// If any task fails, the task sequence is interrupted. Overall result is Failed.
-			logger.Error(err, "Task execution failed", "task", taskName)
-			// The task's Execute method is responsible for setting a detailed message in taskContext.ComponentStatus.
-			// If message wasn't set, set a default failure message here.
-			if taskContext.ComponentStatus.Message == "Processing" || taskContext.ComponentStatus.Message == "Initializing" {
-				taskContext.ComponentStatus.Message = fmt.Sprintf("Task %s failed with error: %v", taskName, err)
-			}
-
-			return TaskResultFailed, fmt.Errorf("task '%s' failed: %w", taskName, err) // Wrap error and return to caller (main controller)
+			firstError = err
+			overallResult = TaskResultFailed
+			break
 		}
-
+		if taskResult == TaskResultFailed {
+			err = fmt.Errorf("task %s reported status Failed but returned nil error", taskName)
+			logger.Error(err, "Task execution inconsistency")
+			firstError = err
+			overallResult = TaskResultFailed
+			break
+		}
 		if taskResult == TaskResultPending {
-			// If a task returns Pending, stop the sequence and signal pending state.
-			logger.V(1).Info("Task returned pending, stopping sequence", "task", taskName)
-			// The task should set a descriptive message in taskContext.ComponentStatus.Message
-			return TaskResultPending, nil // Signal overall task runner is pending
+			overallResult = TaskResultPending
+			break
 		}
-
-		if taskResult == TaskResultComplete {
-			logger.V(1).Info("Task completed successfully", "task", taskName)
-			// Continue to the next task
-			// Ensure taskContext.ComponentStatus.Message reflects this if no subsequent tasks will overwrite.
-			// The *last* message from a completed task often becomes the final message before health check.
-			if taskContext.ComponentStatus.Message == "Processing" || taskContext.ComponentStatus.Message == "Initializing" {
-				taskContext.ComponentStatus.Message = fmt.Sprintf("Task %s complete.", taskName)
-			} else if strings.Contains(taskContext.ComponentStatus.Message, "Building") { // Example
-				taskContext.ComponentStatus.Message = "Objects built, starting apply." // Message reflects transition
-			} else if strings.Contains(taskContext.ComponentStatus.Message, "Applied") {
-				taskContext.ComponentStatus.Message = "Objects applied, checking readiness."
-			}
-
-			continue // Move to the next task in the list
+		if taskResult == TaskResultSkipped {
+			logger.V(1).Info("Task skipped execution")
 		}
-
-		// Handle other TaskResults if defined
+		// If TaskResultComplete, continue implicitly.
 
 	} // End task list loop
 
-	// If the runner finished the task list without interruption
-	logger.V(1).Info("All tasks completed for this component/stage successfully")
-	return TaskResultComplete, nil // Overall task sequence for this component completed successfully
+	return overallResult, firstError
+}
+
+// getTaskName extracts a readable name from a Task implementation type using reflection.
+func getTaskName(task Task) string {
+	if task == nil {
+		return "nil-task"
+	}
+	t := reflect.TypeOf(task)
+	if t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	} // Get element type if pointer
+	name := t.String() // Gets package.Type name
+	// Clean up package path if present
+	parts := strings.Split(name, ".")
+	if len(parts) > 0 {
+		return parts[len(parts)-1]
+	} // Return just the type name
+	return name // Fallback to full name
 }

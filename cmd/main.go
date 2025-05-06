@@ -26,6 +26,9 @@ import (
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
+	_ "github.com/infinilabs/operator/pkg/builders/gateway"    // Trigger init() registration
+	_ "github.com/infinilabs/operator/pkg/reconcilers/gateway" // Trigger init() registration for reconciler
+
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -37,8 +40,14 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	appv1 "github.com/infinilabs/operator/api/app/v1"
-	corev1 "github.com/infinilabs/operator/api/v1"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
+	policyv1 "k8s.io/api/policy/v1"
+
+	appv1api "github.com/infinilabs/operator/api/app/v1"
+	corev1api "github.com/infinilabs/operator/api/v1"
+
 	appcontroller "github.com/infinilabs/operator/internal/controller/app"
 	// +kubebuilder:scaffold:imports
 )
@@ -49,10 +58,18 @@ var (
 )
 
 func init() {
+	// Register Kubernetes core types
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-
+	// Register common K8s API types used by generated objects
+	utilruntime.Must(appsv1.AddToScheme(scheme))
 	utilruntime.Must(corev1.AddToScheme(scheme))
-	utilruntime.Must(appv1.AddToScheme(scheme))
+	utilruntime.Must(policyv1.AddToScheme(scheme))
+	utilruntime.Must(networkingv1.AddToScheme(scheme)) // If using Ingress
+
+	// Register CRD types
+	utilruntime.Must(appv1api.AddToScheme(scheme))
+	utilruntime.Must(corev1api.AddToScheme(scheme))
+
 	// +kubebuilder:scaffold:scheme
 }
 

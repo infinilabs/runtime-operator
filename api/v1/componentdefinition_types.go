@@ -14,34 +14,64 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// api/v1/componentdefinition_types.go
+// Package v1 contains API Schema definitions for the core v1 API group
+// +kubebuilder:object:generate=true
+// +groupName=core.infini.cloud
 package v1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+
+	"github.com/infinilabs/operator/pkg/apis/common"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
+// WorkloadReference uses the common definition.
+type WorkloadReference = common.WorkloadReference
 
 // ComponentDefinitionSpec defines the desired state of ComponentDefinition.
+// In this simplified model, it primarily identifies the component type and its target workload.
 type ComponentDefinitionSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// Workload defines the primary Kubernetes workload kind this component definition primarily maps to
+	// (e.g., Deployment, StatefulSet). This informs the controller's building strategy.
+	// +kubebuilder:validation:Required
+	Workload common.WorkloadReference `json:"workload"`
 
-	// Foo is an example field of ComponentDefinition. Edit componentdefinition_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+	// Description is a brief description of the component definition (what this type represents).
+	// +optional
+	Description string `json:"description,omitempty"`
+
+	// No Defaults field anymore. Default values are handled by Builders based on type.
 }
 
 // ComponentDefinitionStatus defines the observed state of ComponentDefinition.
+// +kubebuilder:object:generate=true
 type ComponentDefinitionStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// Conditions represent the latest available observations of the object's state.
+	// Potentially used by validating webhooks (e.g., to check if type is supported).
+	// +optional
+	// +patchStrategy=merge
+	// +patchMergeKey=type
+	// +listType=map
+	// +listMapKey=type
+	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type" listType:"map" listMapKey:"type"`
+
+	// ObservedGeneration is the most recent generation observed by a controller (if any).
+	// +optional
+	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 }
 
-// +kubebuilder:object:root=true
-// +kubebuilder:subresource:status
+//+kubebuilder:object:root=true
+//+kubebuilder:subresource:status
+//+kubebuilder:resource:scope=Namespaced,path=componentdefinitions,shortName=compdef,categories={infini,core}
+//+kubebuilder:printcolumn:name="Workload Kind",type=string,JSONPath=".spec.workload.kind"
+//+kubebuilder:printcolumn:name="Description",type=string,JSONPath=".spec.description"
+//+kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
+//+kubebuilder:storageversion
 
 // ComponentDefinition is the Schema for the componentdefinitions API.
+// It primarily serves as a type identifier and workload hint for Application components.
 type ComponentDefinition struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -50,13 +80,20 @@ type ComponentDefinition struct {
 	Status ComponentDefinitionStatus `json:"status,omitempty"`
 }
 
-// +kubebuilder:object:root=true
+//+kubebuilder:object:root=true
+//+kubebuilder:object:generate=true
 
 // ComponentDefinitionList contains a list of ComponentDefinition.
 type ComponentDefinitionList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []ComponentDefinition `json:"items"`
+}
+
+// AddScheme adds the ComponentDefinition types to the given scheme.
+func AddScheme(scheme *runtime.Scheme) error {
+	// Register types defined in THIS package's SchemeBuilder
+	return SchemeBuilder.AddToScheme(scheme)
 }
 
 func init() {

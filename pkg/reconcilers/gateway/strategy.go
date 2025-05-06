@@ -5,163 +5,180 @@ import (
 	"context"
 	"fmt"
 
-	// Import necessary types and common components
-	appv1 "github.com/infinilabs/operator/api/app/v1" // App types
+	// Import K8s types needed for checks or task context
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors" // <-- Import apierrors
 	"k8s.io/apimachinery/pkg/runtime"
-	// common "github.com/infinilabs/operator/pkg/apis/common" // Common config if needed
-	"github.com/infinilabs/operator/pkg/builders"
-	common_reconcilers "github.com/infinilabs/operator/pkg/reconcilers/common" // Common tasks like Apply, CheckWorkloadReady
-	"github.com/infinilabs/operator/pkg/strategy"                              // Strategy interface and registry
 
-	// Kubernetes and controller-runtime
+	// Import specific builders if needed indirectly by helpers
+	k8s_builders "github.com/infinilabs/operator/pkg/builders/k8s" // <-- Import k8s_builders
+
+	// Import local types
+	appv1 "github.com/infinilabs/operator/api/app/v1"
+	"github.com/infinilabs/operator/internal/controller/common/kubeutil" // ApplyResult needed for Reconcile signature
+	"github.com/infinilabs/operator/pkg/apis/common"                     // Needed for GatewayConfig type assertion in CheckAppHealth
+	common_reconcilers "github.com/infinilabs/operator/pkg/reconcilers/common"
+	"github.com/infinilabs/operator/pkg/strategy"
+
+	// Controller-runtime imports
+	"k8s.io/client-go/tools/record"
 	client "sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/log" // Logger
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-// Ensure our strategy implementation complies with the interface
+// Ensure implementation complies
 var _ strategy.AppReconcileStrategy = &GatewayReconcileStrategy{}
 
 // GatewayReconcileStrategy orchestrates the reconciliation flow for the "gateway" application type.
-// It defines the sequence of common or gateway-specific tasks to run.
-type GatewayReconcileStrategy struct {
-	// Needs client/scheme/recorder? Maybe passed to methods, or task runner receives them.
-}
+type GatewayReconcileStrategy struct{}
 
-// Register the GatewayReconcileStrategy strategy.
+// Register the strategy
 func init() {
-	// Register this strategy using the component type name as the key ("gateway").
 	strategy.RegisterAppReconcileStrategy("gateway", &GatewayReconcileStrategy{})
 }
 
-// Reconcile implements the AppReconcileStrategy interface.
-// This method defines the sequence of tasks to run for a Gateway component instance.
+// Reconcile implements AppReconcileStrategy interface.
+// Defines the sequence of tasks to run for a Gateway component instance.
 // It utilizes the common Task Runner.
-func (s *GatewayReconcileStrategy) Reconcile(ctx context.Context, k8sClient client.Client, scheme *runtime.Scheme, appDef *appv1.ApplicationDefinition, componentStatus *appv1.ComponentStatusReference, desiredObjects []client.Object, applyResults map[string]kubeutil.ApplyResult) (bool, error) { // Pass needed state
-	logger := log.FromContext(ctx).WithValues("component", componentStatus.Name) // Use logger
+func (s *GatewayReconcileStrategy) Reconcile(
+	ctx context.Context,
+	k8sClient client.Client,
+	scheme *runtime.Scheme,
+	appDef *appv1.ApplicationDefinition,
+	appComp *appv1.ApplicationComponent, // <--- 这个参数在函数签名中已经有了
+	componentStatus *appv1.ComponentStatusReference, // <--- 这个参数在函数签名中已经有了
+	mergedConfig interface{}, // <--- 这个参数在函数签名中已经有了
+	desiredObjects []client.Object, // <--- 原始的 desiredObjects 列表
+	applyResults map[string]kubeutil.ApplyResult, // <--- 这个参数在函数签名中已经有了
+	recorder record.EventRecorder,
+) (bool, error) { // Returns needsRequeue, error
+	logger := log.FromContext(ctx).WithValues("component", componentStatus.Name, "reconcileStrategy", "Gateway")
 
-	// --- Define the list of tasks for Gateway reconciliation ---
-	// This defines the *workflow* for a Gateway component.
-
+	// --- Define the list of tasks for Gateway reconciliation workflow ---
 	taskList := []common_reconcilers.Task{
-		// Example tasks for a simple Gateway deployment pattern:
-		// 1. Apply all standard K8s resources built (StatefulSet, Services, ConfigMaps)
-		common_reconcilers.NewApplyResourcesTask(),
-		// 2. Check standard K8s workload readiness (Wait for StatefulSet Pods to be Ready)
-		common_reconcilers.NewCheckWorkloadReadyTask(),
-		// 3. Check K8s Service readiness (Wait for Service Endpoints)
-		// Needs a dedicated task for this common pattern
-		// common_reconcilers.NewCheckServiceReadyTask(),
-		// Add other common or gateway specific tasks if needed...
+		common_reconcilers.NewCheckK8sHealthTask(),
+		// common_reconcilers.NewCheckServiceReadyTask(), // Example
 	}
 
-	// --- Prepare the Task Context for all tasks ---
-	taskContext := &common_reconcilers.TaskContext{
-		Logger:          logger,          // Logger
-		AppDef:          appDef,          // Owner context
-		ComponentStatus: componentStatus, // Mutable component status entry for *this* component
-		DesiredObjects:  desiredObjects,  // Objects generated by the builder strategy's BuildObjects call
-		ApplyResults:    applyResults,    // Apply results from applyResources step done before this strategy call
-		// Task specific parameters could be added here if tasks need configuration
-	}
+	// --- Task Context is prepared INTERNALLY by TaskRunner or passed to individual tasks ---
+	// --- You DON'T pass the taskContext struct directly to RunTasks ---
 
-	// --- Get a common Task Runner and run the defined tasks ---
-	// TaskRunner needs client and scheme to execute K8s operations within tasks.
-	taskRunner := &common_reconcilers.TaskRunner{Client: k8sClient, Scheme: scheme, Recorder: nil} // Need recorder if tasks record events
+	// --- Run tasks using Task Runner ---
+	taskRunner := common_reconcilers.NewTaskRunner(k8sClient, scheme, recorder)
 
-	overallResult, runErr := taskRunner.RunTasks(ctx, appDef, taskContext, taskList) // Pass appDef as owner
+	// --- 正确的调用方式 ---
+	// 将 Reconcile 函数接收到的参数直接传递给 RunTasks
+	overallResult, runErr := taskRunner.RunTasks(
+		ctx,
+		appDef,                         // owner (client.Object)
+		appComp,                        // *appv1.ApplicationComponent
+		componentStatus,                // *appv1.ComponentStatusReference
+		mergedConfig,                   // interface{}
+		buildObjectMap(desiredObjects), // map[string]client.Object (需要转换)
+		applyResults,                   // map[string]kubeutil.ApplyResult
+		taskList,                       // []common_reconcilers.Task
+	)
 
-	// --- Handle overall result and error returned by Task Runner ---
-
+	// --- Handle overall result and error ---
 	if runErr != nil {
-		// A task failed with an error (critical error). Overall reconcile step failed.
 		logger.Error(runErr, "Gateway reconciliation task execution failed")
-		// Task Runner should already return TaskResultFailed in overallResult
-		// Task should update its message in taskContext.ComponentStatus
-		return false, runErr // Signal overall reconcile failure, allow controller-runtime to backoff.
+		return false, runErr // Signal overall reconcile failure
 	}
 
-	// If runErr is nil, check overall overallResult.
 	if overallResult == common_reconcilers.TaskResultPending {
-		// A task returned Pending (e.g., waiting for resources ready).
-		// Need to request requeue. Overall reconcile step is Pending.
 		logger.V(1).Info("Gateway reconciliation task execution pending")
-		// Task should update its message in taskContext.ComponentStatus
-		return true, nil // Signal needs requeue, no error.
+		return true, nil // Signal needs requeue
 	}
 
-	// If overallResult is TaskResultComplete and runErr is nil. All tasks completed successfully.
 	logger.V(1).Info("Gateway reconciliation task execution complete")
-	// The overall health check in the main controller will use taskContext.ComponentStatus.Health and Message set by CheckWorkloadReadyTask.
-	return false, nil // Signal overall reconcile step complete.
+	return false, nil // Signal completion
 }
 
-// CheckAppHealth implements the AppReconcileStrategy interface.
-// It performs application-level health check for Gateway (beyond K8s resource readiness).
-// In a simple Gateway case, basic K8s readiness (checked by CheckWorkloadReadyTask) might be sufficient.
-// If Gateway has a specific API endpoint for deep health checks, it goes here.
-func (s *GatewayReconcileStrategy) CheckAppHealth(ctx context.Context, k8sClient client.Client, appDef *appv1.ApplicationDefinition, appComp *appv1.ApplicationComponent) (bool, string, error) {
+// CheckAppHealth implements AppReconcileStrategy interface for Gateway.
+// Performs application-level health check for Gateway.
+func (s *GatewayReconcileStrategy) CheckAppHealth(ctx context.Context, k8sClient client.Client, scheme *runtime.Scheme, appDef *appv1.ApplicationDefinition, appComp *appv1.ApplicationComponent, appSpecificConfig interface{}) (bool, string, error) {
 	logger := log.FromContext(ctx).WithValues("component", appComp.Name, "type", appComp.Type)
-	logger.V(1).Info("Executing Gateway application health check placeholder")
+	logger.V(1).Info("Executing Gateway application health check (Strategy CheckAppHealth method)")
 
-	// This is the deep application health check. Requires knowing Gateway endpoints.
-	// Example: Find the Gateway service and try to call its specific health endpoint.
-	// Based on service builder, the K8s service name might be DerivedResourceName(appComp.Name)
-	gatewaySvcName := builders.DeriveResourceName(appComp.Name)
-	gatewayNamespace := appDef.Namespace
-
-	// Need to get service from K8s API to check endpoints or call service IP.
-	// Example check (simplistic): just check if the Service has endpoints.
-	svc := &corev1.Service{}
-	err := k8sClient.Get(ctx, client.ObjectKey{Namespace: gatewayNamespace, Name: gatewaySvcName}, svc)
-	if err != nil {
-		if apierrors.IsNotFound(err) {
-			return false, "Gateway service not found", nil // Service not ready
-		}
-		return false, fmt.Sprintf("Failed to get Gateway service %s/%s: %v", gatewayNamespace, gatewaySvcName, err), err // Error during check process
+	// Type assert the specific config
+	gatewayConfig, ok := appSpecificConfig.(*common.GatewayConfig)
+	if !ok || gatewayConfig == nil {
+		return false, "Invalid or missing Gateway config for health check", fmt.Errorf("invalid config type %T", appSpecificConfig)
 	}
 
-	// If Service exists, check if it has ready endpoints
-	// Needs getting Endpoints object (related to Service selector)
-	endpoints := &corev1.Endpoints{}
-	err = k8sClient.Get(ctx, client.ObjectKey{Namespace: gatewayNamespace, Name: gatewaySvcName}, endpoints)
-	if err != nil {
-		if apierrors.IsNotFound(err) {
-			return false, "Gateway endpoints not found", nil // No endpoints means no healthy pods
+	// --- Implement Gateway Specific Health Check Logic ---
+	// Example: Check Client Service Endpoints as a basic app-level check
+
+	// 1. Find the primary client service name (convention or config)
+	instanceName := appComp.Name
+	serviceName := k8s_builders.DeriveResourceName(instanceName) // Assume service name matches instance name
+	namespace := appDef.Namespace
+
+	// 2. Get the service object
+	svc := &corev1.Service{}
+	if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: serviceName}, svc); err != nil {
+		if apierrors.IsNotFound(err) { // Use apierrors alias
+			return false, fmt.Sprintf("Client service %s not found", serviceName), nil // Not healthy if service missing
 		}
-		return false, fmt.Sprintf("Failed to get Gateway endpoints %s/%s: %v", gatewayNamespace, gatewaySvcName, err), err // Error during check process
+		// Error during the check process itself
+		return false, fmt.Sprintf("Failed to get client service %s: %v", serviceName, err), err
+	}
+
+	// 3. Check if it's headless (if so, app health might rely on other checks)
+	if svc.Spec.ClusterIP == corev1.ClusterIPNone {
+		// Maybe return true here, assuming basic K8s readiness passed earlier?
+		// Or perform a check specific to headless discovery.
+		return true, "Headless service found (basic check)", nil
+	}
+
+	// 4. For non-headless, check endpoints
+	endpoints := &corev1.Endpoints{}
+	if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: serviceName}, endpoints); err != nil {
+		if apierrors.IsNotFound(err) { // Use apierrors alias
+			return false, "Gateway service endpoints not found", nil // No endpoints means no healthy pods serving
+		}
+		return false, fmt.Sprintf("Failed to get Gateway endpoints %s: %v", serviceName, err), err
 	}
 
 	// Check if endpoints has ready addresses in subsets
 	hasReadyEndpoints := false
-	totalEndpoints := 0
+	readyCount := 0
+	totalCount := 0
 	if endpoints.Subsets != nil {
 		for _, subset := range endpoints.Subsets {
 			if subset.Addresses != nil {
+				readyCount += len(subset.Addresses)
 				hasReadyEndpoints = hasReadyEndpoints || len(subset.Addresses) > 0
-				totalEndpoints += len(subset.Addresses)
 			}
 			if subset.NotReadyAddresses != nil {
-				totalEndpoints += len(subset.NotReadyAddresses)
+				totalCount += len(subset.NotReadyAddresses)
 			}
 		}
+		totalCount += readyCount
 	}
 
 	if !hasReadyEndpoints {
-		return false, fmt.Sprintf("No ready endpoints found for Gateway service (%d total)", totalEndpoints), nil // No healthy pods connected
+		return false, fmt.Sprintf("No ready endpoints found for Gateway service (%d/%d ready/total)", readyCount, totalCount), nil
 	}
 
-	// --- Advanced Check (Actual App Health Endpoint) ---
-	// Find Service IP (ClusterIP or LB IP/Hostname)
-	// svcIP := svc.Spec.ClusterIP // or LB ingress IP/hostname
-	// Determine application health port from Service config or common config
-	// httpPort := // ... get http port from config ...
-	// Build health endpoint URL: e.g., http://<svcIP>:<httpPort>/<healthPath>
-	// Use net/http or curl via a temporary debug pod (more complex) to call the app endpoint.
-	// response, err := http.Get(healthURL) // Example
-	// Return health based on response (status code, body content).
+	// --- Add deeper HTTP check if needed ---
+	// clusterIP := svc.Spec.ClusterIP
+	// httpPort := findHttpPort(...) // Find relevant port
+	// healthURL := fmt.Sprintf("http://%s:%d/healthz", clusterIP, httpPort)
+	// Perform http.Get(healthURL) ...
 
-	// If this complex check is needed, the strategy or a dedicated task should implement it.
+	// If only endpoint check is done:
+	return true, fmt.Sprintf("Gateway application service has ready endpoints (%d/%d ready/total)", readyCount, totalCount), nil
+}
 
-	// For now, fallback to saying it's healthy if Service has endpoints
-	return true, "Gateway application endpoint reachable (simplified check)", nil
+// Helper to build map from object slice (duplicate from OS strategy, move to common util?)
+func buildObjectMap(objList []client.Object) map[string]client.Object {
+	objMap := make(map[string]client.Object, len(objList))
+	for _, obj := range objList {
+		gvk := obj.GetObjectKind().GroupVersionKind()
+		objKey := client.ObjectKeyFromObject(obj)
+		resultMapKey := gvk.String() + "/" + objKey.String() // Use consistent key
+		objMap[resultMapKey] = obj
+	}
+	return objMap
 }

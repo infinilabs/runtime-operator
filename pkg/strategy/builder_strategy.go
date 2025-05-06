@@ -2,40 +2,46 @@
 package strategy
 
 import (
-	"context" // Needed if strategy methods require context
+	"context" // Needed for methods
 
 	appv1 "github.com/infinilabs/operator/api/app/v1" // For ApplicationDefinition, ApplicationComponent
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema" // For GVK
+	"k8s.io/apimachinery/pkg/runtime"                 // For Scheme
+	"k8s.io/apimachinery/pkg/runtime/schema"          // For GVK
 
 	"sigs.k8s.io/controller-runtime/pkg/client" // Needed if strategy needs client
-	// Import common types or application specific types if they are inputs/outputs
-	// Example: common "github.com/infinilabs/operator/pkg/apis/common"
-	// opensearch "github.com/infinilabs/operator/pkg/apis/opensearch/types" // Example for app-specific types
 )
 
-// AppBuilderStrategy defines the contract for application-specific logic needed by the K8s object building phase.
-// Each application type (like "opensearch", "gateway") that requires building K8s resources implements this interface.
+// AppBuilderStrategy defines the contract for application-specific logic
+// needed during the Kubernetes object building phase of reconciliation.
+// Each supported application type (e.g., "opensearch", "gateway") needs a
+// concrete implementation of this interface registered in the registry.
 type AppBuilderStrategy interface {
 	// BuildObjects builds the necessary K8s objects (Deployment, StatefulSet, Services, CMs, Secrets, etc.)
-	// for a specific application component instance.
-	// It receives the ApplicationDefinition (as owner context), the component context (AppComp),
-	// and the UNMARSHALLED application-specific configuration.
-	// The strategy implementation is responsible for:
-	//   1. Validating the structure and content of the 'appSpecificConfig' based on application type.
-	//   2. Mapping data from 'appSpecificConfig' (and appDef/appComp/ComponentDefinition info)
-	//      to the specific K8s resource specs (DeploymentSpec, StatefulSetSpec, PodSpec etc.).
-	//   3. Calling generic or application-specific *builder functions* (from pkg/builders)
-	//      to construct the concrete K8s object structs (*appsv1.Deployment, *corev1.Service etc.).
-	//   4. Returning a list of client.Object interfaces representing the desired resources.
-	//   5. Returning the first error encountered during validation or building.
-	// Note: Setting OwnerReference is usually done by the caller (controller) after receiving objects.
+	// for a specific application component instance based on its configuration.
+	//
+	// Parameters:
+	//   - ctx: Go context.
+	//   - k8sClient: Controller's Kubernetes client.
+	//   - scheme: Runtime scheme for object GVK lookup.
+	//   - owner: The owning ApplicationDefinition resource (used for OwnerReferences).
+	//   - appDef: The full ApplicationDefinition resource.
+	//   - appComp: The specific ApplicationComponent being processed.
+	//   - appSpecificConfig: The UNMARSHALLED application-specific configuration struct
+	//     (e.g., *common.GatewayConfig, *common.OpensearchClusterConfig) corresponding to appComp.Type.
+	//     The implementation MUST type assert this interface{} to its expected concrete type.
+	//
+	// Returns:
+	//   - []client.Object: A slice of Kubernetes objects (e.g., *appsv1.StatefulSet, *corev1.Service)
+	//     that represent the desired state for this component instance. Builders should ensure
+	//     these objects have correct TypeMeta (GVK) and essential ObjectMeta (Name, Namespace, Labels).
+	//     OwnerReferences will be set by the main controller after this method returns.
+	//   - error: The first critical error encountered during config validation or object building.
+	//     Returning an error here will typically cause the reconciliation for the *entire* ApplicationDefinition
+	//     to fail and requeue.
 	BuildObjects(ctx context.Context, k8sClient client.Client, scheme *runtime.Scheme, owner client.Object, appDef *appv1.ApplicationDefinition, appComp *appv1.ApplicationComponent, appSpecificConfig interface{}) ([]client.Object, error)
 
-	// GetWorkloadGVK returns the expected primary K8s workload GVK for this application type (e.g., StatefulSet for Opensearch).
-	// This is often used by the controller for basic checks or logging.
+	// GetWorkloadGVK returns the expected primary K8s workload GVK (e.g., StatefulSet for Opensearch)
+	// managed by this application type strategy. This should match the ComponentDefinition.
+	// Used by the controller for informational purposes or validation.
 	GetWorkloadGVK() schema.GroupVersionKind
 }
-
-// Strategy registration (Actual registration happens in init() of specific strategy implementations)
-// See registry.go
