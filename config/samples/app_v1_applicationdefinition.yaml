@@ -1,9 +1,78 @@
 apiVersion: app.infini.cloud/v1
 kind: ApplicationDefinition
 metadata:
-  labels:
-    app.kubernetes.io/name: infini-operator
-    app.kubernetes.io/managed-by: kustomize
-  name: applicationdefinition-sample
+  name: my-infini-gateway # 应用实例名称
+  namespace: infini-test # 替换为你的命名空间
 spec:
-  # TODO(user): Add fields here
+  components:
+    - name: infini-gw-main # 组件实例名称 (会影响资源名称)
+      type: gateway # 引用上面的 ComponentDefinition
+      properties:
+        # --- 核心配置 ---
+        replicas: 1 # 副本数 (例如: 1 或 3)
+        image:
+          repository: infinilabs/gateway # 目标镜像
+          tag: 1.29.3-2018
+        ports:
+          - name: http # 主要应用端口
+            containerPort: 8080 
+            protocol: TCP
+          # - name: metrics # 如果有其他端口
+          #   containerPort: 9090
+        storage: # StatefulSet 通常需要存储
+          enabled: true
+          size: 2Gi # <-- 按需调整存储大小
+          mountPath: /infini-data # <-- !!! 确认 infinilabs/gateway 数据/配置挂载路径 !!!
+          volumeClaimTemplateName: data # VCT 名称 (通常与 mountPath 相关)
+          accessModes:
+            - ReadWriteOnce
+          storageClassName: standard # <--- !!! 替换为你集群中有效的 StorageClass !!!
+
+        # --- 可选配置 ---
+        service: # 服务暴露配置
+           type: NodePort # 使用 NodePort 便于测试，或 LoadBalancer
+           ports:
+             - name: http # Service 端口名称
+               containerPort: 8080 # Service 监听的端口
+               # targetPort: 8080 # 转发的目标 Pod 端口 (默认等于 containerPort)
+               # nodePort: 30080 # 可选：指定 NodePort 端口
+        # resources:
+        #   requests:
+        #     cpu: "0.5" # 500m
+        #     memory: "512Mi"
+        #   limits:
+        #     cpu: "1" # 1 Core
+        #     memory: "1Gi"
+        # probes: # <-- 强烈建议根据实际情况配置健康检查
+        #   liveness:
+        #     httpGet:
+        #       path: /api/_health # <-- !!! 确认健康检查路径 !!!
+        #       port: 8080        # <-- !!! 确认健康检查端口 !!!
+        #     initialDelaySeconds: 120 # 给予较长启动时间
+        #     periodSeconds: 20
+        #     timeoutSeconds: 5
+        #     failureThreshold: 6
+        #   readiness:
+        #     httpGet:
+        #       path: /api/_ready # <-- !!! 确认就绪检查路径 !!!
+        #       port: 8080       # <-- !!! 确认就绪检查端口 !!!
+        #     initialDelaySeconds: 30
+        #     periodSeconds: 10
+        #     timeoutSeconds: 3
+        #     failureThreshold: 3
+        # env:
+        #   - name: GATEWAY_HEAP_SIZE # 示例环境变量
+        #     value: "512m"
+        #   - name: LOG_LEVEL
+        #     value: "info"
+        # configFiles: # 如果需要传递配置文件内容
+        #   "gateway.yaml": |
+        #     cluster:
+        #       name: my-gateway-cluster
+        #     network:
+        #       host: 0.0.0.0
+        #     # ... 其他 gateway 配置 ...
+        # configMounts: # 需要配合 configFiles 告诉 Builder 如何挂载
+        #  - name: infini-gw-main-config # 指向上面生成的 ConfigMap
+        #    mountPath: /etc/gateway/ # 挂载配置文件的目录
+        #    # subPath: gateway.yaml # 如果只想挂载单个文件

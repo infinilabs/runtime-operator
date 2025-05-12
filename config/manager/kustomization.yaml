@@ -5,4 +5,4 @@ kind: Kustomization
 images:
 - name: controller
   newName: registry.infini.dev/infinilabs/infini-operator
-  newTag: 0.0.1-1042
+  newTag: 0.0.1-1052
