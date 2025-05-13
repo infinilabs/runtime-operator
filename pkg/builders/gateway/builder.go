@@ -54,7 +54,9 @@ func (b *GatewayBuilderStrategy) GetWorkloadGVK() schema.GroupVersionKind {
 }
 
 // BuildObjects implements the AppBuilderStrategy interface.
-func (b *GatewayBuilderStrategy) BuildObjects(ctx context.Context, k8sClient client.Client, scheme *runtime.Scheme, owner client.Object, appDef *appv1.ApplicationDefinition, appComp *appv1.ApplicationComponent, appSpecificConfig interface{}) ([]client.Object, error) {
+func (b *GatewayBuilderStrategy) BuildObjects(ctx context.Context, k8sClient client.Client,
+	scheme *runtime.Scheme, owner client.Object, appDef *appv1.ApplicationDefinition,
+	appComp *appv1.ApplicationComponent, appSpecificConfig interface{}) ([]client.Object, error) {
 	logger := log.FromContext(ctx).WithValues("component", appComp.Name, "type", appComp.Type, "builder", "Gateway")
 
 	// --- Unmarshal and Validate Specific Configuration ---

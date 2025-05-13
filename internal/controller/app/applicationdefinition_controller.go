@@ -334,7 +334,11 @@ func (r *ApplicationDefinitionReconciler) setInitialPhase(ctx context.Context, s
 	currentPhase := state.appDef.Status.Phase
 	if currentPhase == "" || currentPhase == appv1.ApplicationPhasePending {
 		state.appDef.Status.Phase = appv1.ApplicationPhaseProcessing
-		setCondition(state.appDef, metav1.Condition{Type: string(appv1.ConditionReady), Status: metav1.ConditionFalse, Reason: "Processing", Message: "Starting component processing"})
+		setCondition(state.appDef, metav1.Condition{
+			Type:    string(appv1.ConditionReady),
+			Status:  metav1.ConditionFalse,
+			Reason:  "Processing",
+			Message: "Starting component processing"})
 		r.Recorder.Event(state.appDef, corev1.EventTypeNormal, "Processing", "Starting component processing")
 		// Status will be updated later if needed, just return true to signal requeue
 		return true, nil // Signal that phase changed and might need status update + requeue
