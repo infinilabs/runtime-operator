@@ -14,8 +14,8 @@ spec:
           repository: docker.1ms.run/infinilabs/gateway # 目标镜像
           tag: 1.29.3-2018
         ports:
-          - name: http # 主要应用端口
-            containerPort: 8080 
+          - name: http-2900 # 主要应用端口
+            containerPort: 2900
             protocol: TCP
           # - name: metrics # 如果有其他端口
           #   containerPort: 9090
@@ -33,7 +33,7 @@ spec:
           type: NodePort # 使用 NodePort 便于测试，或 LoadBalancer
           ports:
             - name: http # Service 端口名称
-              containerPort: 8080 # Service 监听的端口
+              containerPort: 2900 # Service 监听的端口
                # targetPort: 8080 # 转发的目标 Pod 端口 (默认等于 containerPort)
                # nodePort: 30080 # 可选：指定 NodePort 端口
         resources:
@@ -46,17 +46,17 @@ spec:
         probes: # <-- 强烈建议根据实际情况配置健康检查
           liveness:
             httpGet:
-              path: /api/_health # <-- !!! 确认健康检查路径 !!!
-              port: 8080        # <-- !!! 确认健康检查端口 !!!
-            initialDelaySeconds: 120 # 给予较长启动时间
-            periodSeconds: 20
+              path: /_info # <-- !!! 确认健康检查路径 !!!
+              port: 2900        # <-- !!! 确认健康检查端口 !!!
+            initialDelaySeconds: 15 # 给予较长启动时间
+            periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 6
           readiness:
             httpGet:
-              path: /api/_ready # <-- !!! 确认就绪检查路径 !!!
-              port: 8080       # <-- !!! 确认就绪检查端口 !!!
-            initialDelaySeconds: 30
+              path: /_info # <-- !!! 确认就绪检查路径 !!!
+              port: 2900       # <-- !!! 确认就绪检查端口 !!!
+            initialDelaySeconds: 5
             periodSeconds: 10
             timeoutSeconds: 3
             failureThreshold: 3
@@ -65,8 +65,13 @@ spec:
             value: "512m"
           - name: LOG_LEVEL
             value: "info"
+        configMounts: # 需要配合 configFiles 告诉 Builder 如何挂载
+          - name: infini-gw-main-config # 指向上面生成的 ConfigMap
+            mountPath: /gateway.yml # 挂载配置文件的目录
+            subPath: gateway.yml # 挂载单个文件
+            readOnly: true
         configFiles: # 配置文件内容. configmap 有更新应该自动重启gw todo
-          "gateway.yaml": |
+          "gateway.yml": |
             env:
               NODE_ID:
               NODE_ENDPOINT:
@@ -89,22 +94,6 @@ spec:
                 tenant_id: $[[env.TENANT_ID]]
                 group_id: $[[env.GROUP_ID]]
                 k8s_cluster_id: $[[env.K8S_CLUSTER_ID]]
-            
-            configs:
-              #for managed client's setting
-              managed: true # managed by remote servers
-              panic_on_config_error: false #ignore config error
-              interval: "10s"
-              servers: # config servers
-                - $[[env.CONFIG_SERVER]]
-              soft_delete: false
-              max_backup_files: 5
-              tls: #for mTLS connection with config servers
-                enabled: false
-                cert_file: "config/client.crt"
-                key_file: "config/client.key"
-                ca_file: "config/ca.crt"
-                skip_insecure_verify: false
             
             entry:
               - name: gateway_proxy
@@ -167,7 +156,3 @@ spec:
                       max_idle_conn_duration: "900s"
                       suffix: $[[parsed_index.service]].$[[env.K8S_NAMESPACE]]
                       domain: "svc.$[[env.K8S_CLUSTER]]:8088"
-        configMounts: # 需要配合 configFiles 告诉 Builder 如何挂载
-          - name: infini-gw-main-config # 指向上面生成的 ConfigMap
-            mountPath: /gateway.yaml # 挂载配置文件的目录
-            subPath: gateway.yaml # 挂载单个文件
