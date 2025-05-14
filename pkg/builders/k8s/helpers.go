@@ -242,7 +242,7 @@ func BuildProbe(probeSpec *corev1.Probe) *corev1.Probe {
 // If Create is true (or default) and Name is set, returns the configured name.
 // If Create is true (or default) and Name is not set, returns a derived default name.
 func DeriveServiceAccountName(instanceName string, config *common.ServiceAccountSpec) string {
-	createSA := true // Default to creating the SA unless explicitly disabled
+	createSA := false // Default to creating the SA unless explicitly disabled
 	if config != nil && config.Create != nil {
 		createSA = *config.Create
 	}
@@ -257,8 +257,7 @@ func DeriveServiceAccountName(instanceName string, config *common.ServiceAccount
 	}
 
 	// Derive default name if creating and no override provided
-	return "default" // Use default K8s service account name
-	// return DeriveResourceName(instanceName) + "-sa" // Use helper for base name + suffix
+	return DeriveResourceName(instanceName) + "-sa" // Use helper for base name + suffix
 }
 
 // ++++++++++++++++++++++++++++++++++++++++++++++++++++++++

@@ -2,7 +2,7 @@ apiVersion: app.infini.cloud/v1
 kind: ApplicationDefinition
 metadata:
   name: my-infini-gateway # 应用实例名称
-  namespace: default # 替换为你的命名空间
+  namespace: infini-test # 替换为你的命名空间
 spec:
   components:
     - name: infini-gw-main # 组件实例名称 (会影响资源名称)
@@ -19,15 +19,17 @@ spec:
             protocol: TCP
           # - name: metrics # 如果有其他端口
           #   containerPort: 9090
-        storage: # StatefulSet 通常需要存储
+        storage: # StatefulSet 通常需要存储. 目前删除 Pod 不会删除 PVC，todo
           enabled: true
           size: 2Gi # <-- 按需调整存储大小
           mountPath: /app # <-- !!! 确认 infinilabs/gateway 数据/配置挂载路径 !!!
           volumeClaimTemplateName: data # VCT 名称 (通常与 mountPath 相关)
           accessModes:
             - ReadWriteOnce
-          storageClassName: local # <--- !!! 替换为你集群中有效的 StorageClass !!!
-
+          storageClassName: local-path # <--- !!! 替换为你集群中有效的 StorageClass !!!
+#        serviceAccount:  # ServiceAccount 名称
+#            create: false # 是否创建 ServiceAccount, 默认值为 false
+#            name: controller-manager # <-- !!! 确认 ServiceAccount 名称 !!!
         # --- 可选配置 ---
         service: # 服务暴露配置
           type: NodePort # 使用 NodePort 便于测试，或 LoadBalancer
@@ -51,7 +53,7 @@ spec:
             initialDelaySeconds: 15 # 给予较长启动时间
             periodSeconds: 10
             timeoutSeconds: 5
-            failureThreshold: 6
+            failureThreshold: 5
           readiness:
             httpGet:
               path: /_info # <-- !!! 确认就绪检查路径 !!!
@@ -59,7 +61,7 @@ spec:
             initialDelaySeconds: 5
             periodSeconds: 10
             timeoutSeconds: 3
-            failureThreshold: 3
+            failureThreshold: 5
         env:
           - name: GATEWAY_HEAP_SIZE # 示例环境变量
             value: "512m"
@@ -70,7 +72,7 @@ spec:
             mountPath: /gateway.yml # 挂载配置文件的目录
             subPath: gateway.yml # 挂载单个文件
             readOnly: true
-        configFiles: # 配置文件内容. configmap 有更新应该自动重启gw todo
+        configFiles: # 配置文件内容. configmap 有更新会自动重启gw
           "gateway.yml": |
             env:
               NODE_ID:

@@ -165,7 +165,7 @@ type EnvFromSourceSpec = corev1.EnvFromSource
 // ServiceAccountSpec defines Service Account creation and usage.
 type ServiceAccountSpec struct {
 	// +optional
-	Create *bool `json:"create,omitempty"` // Default: true
+	Create *bool `json:"create,omitempty"` // Default: false
 	// +optional
 	Name string `json:"name,omitempty"`
 	// +optional
