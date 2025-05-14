@@ -257,7 +257,8 @@ func DeriveServiceAccountName(instanceName string, config *common.ServiceAccount
 	}
 
 	// Derive default name if creating and no override provided
-	return DeriveResourceName(instanceName) + "-sa" // Use helper for base name + suffix
+	return "default" // Use default K8s service account name
+	// return DeriveResourceName(instanceName) + "-sa" // Use helper for base name + suffix
 }
 
 // ++++++++++++++++++++++++++++++++++++++++++++++++++++++++
