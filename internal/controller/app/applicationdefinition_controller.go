@@ -224,6 +224,7 @@ func (r *ApplicationDefinitionReconciler) Reconcile(ctx context.Context, req ctr
 
 	// No requeue needed and no error occurred (or errors were handled and don't require immediate retry)
 	return ctrl.Result{}, state.firstError // Return firstError (might be nil)
+	// return ctrl.Result{Requeue: true, RequeueAfter: 30 * time.Second}, state.firstError // Return firstError (might be nil)
 }
 
 // --- Helper Methods ---
@@ -334,7 +335,17 @@ func (r *ApplicationDefinitionReconciler) setInitialPhase(ctx context.Context, s
 	currentPhase := state.appDef.Status.Phase
 	if currentPhase == "" || currentPhase == appv1.ApplicationPhasePending {
 		state.appDef.Status.Phase = appv1.ApplicationPhaseProcessing
-		setCondition(state.appDef, metav1.Condition{Type: string(appv1.ConditionReady), Status: metav1.ConditionFalse, Reason: "Processing", Message: "Starting component processing"})
+		setCondition(state.appDef, metav1.Condition{
+			Type:    string(appv1.ConditionReady),
+			Status:  metav1.ConditionFalse,
+			Reason:  "Processing",
+			Message: "Starting component processing"})
+
+		// 需要持久化更新到cr中，否则status一直不会更新，不会触发后续的apply
+		err := r.Status().Update(ctx, state.appDef)
+		if err != nil {
+			return false, err
+		}
 		r.Recorder.Event(state.appDef, corev1.EventTypeNormal, "Processing", "Starting component processing")
 		// Status will be updated later if needed, just return true to signal requeue
 		return true, nil // Signal that phase changed and might need status update + requeue

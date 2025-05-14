@@ -242,7 +242,7 @@ func BuildProbe(probeSpec *corev1.Probe) *corev1.Probe {
 // If Create is true (or default) and Name is set, returns the configured name.
 // If Create is true (or default) and Name is not set, returns a derived default name.
 func DeriveServiceAccountName(instanceName string, config *common.ServiceAccountSpec) string {
-	createSA := true // Default to creating the SA unless explicitly disabled
+	createSA := false // Default to creating the SA unless explicitly disabled
 	if config != nil && config.Create != nil {
 		createSA = *config.Create
 	}
