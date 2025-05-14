@@ -2,7 +2,7 @@ apiVersion: app.infini.cloud/v1
 kind: ApplicationDefinition
 metadata:
   name: my-infini-gateway # 应用实例名称
-  namespace: infini-test # 替换为你的命名空间
+  namespace: devops # 替换为你的命名空间
 spec:
   components:
     - name: infini-gw-main # 组件实例名称 (会影响资源名称)
@@ -16,6 +16,9 @@ spec:
         ports:
           - name: http-2900 # 主要应用端口
             containerPort: 2900
+            protocol: TCP
+          - name: http-8000 # 主要应用端口
+            containerPort: 8000
             protocol: TCP
           # - name: metrics # 如果有其他端口
           #   containerPort: 9090
@@ -38,6 +41,8 @@ spec:
               containerPort: 2900 # Service 监听的端口
                # targetPort: 8080 # 转发的目标 Pod 端口 (默认等于 containerPort)
                # nodePort: 30080 # 可选：指定 NodePort 端口
+            - name: http # Service 端口名称
+              containerPort: 8000 # Service 监听的端口
         resources:
           requests:
             cpu: "0.5" # 500m
