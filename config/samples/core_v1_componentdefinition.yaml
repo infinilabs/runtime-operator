@@ -2,7 +2,7 @@ apiVersion: core.infini.cloud/v1
 kind: ComponentDefinition
 metadata:
   name: gateway # 类型名称
-  namespace: default # 替换为你的命名空间
+  namespace: infini-test # 替换为你的命名空间
 spec:
   description: "Infinilabs Gateway component based on StatefulSet."
   workload:
