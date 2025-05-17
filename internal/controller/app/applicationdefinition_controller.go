@@ -361,6 +361,9 @@ func (r *ApplicationDefinitionReconciler) processComponentsAndBuildObjects(ctx c
 
 	for i := range appDef.Spec.Components {
 		appComp := appDef.Spec.Components[i] // Use index to get mutable reference if needed, but copy is safer
+		if appComp.Type == "" {
+			appComp.Type = "operator"
+		}
 		compLogger := logger.WithValues("component", appComp.Name, "componentType", appComp.Type)
 		compStatus := state.componentStatuses[appComp.Name] // Get status entry
 

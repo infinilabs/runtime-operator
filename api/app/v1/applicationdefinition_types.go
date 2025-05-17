@@ -69,8 +69,7 @@ type ApplicationComponent struct {
 	Name string `json:"name"`
 
 	// Type references the `metadata.name` of a `ComponentDefinition` resource in the same namespace.
-	// +kubebuilder:validation:Required
-	Type string `json:"type"`
+	Type string `json:"type,omitempty"`
 
 	// Properties provides the instance-specific configuration as raw JSON.
 	// The structure is determined by the component 'type' and validated by the corresponding builder strategy.
