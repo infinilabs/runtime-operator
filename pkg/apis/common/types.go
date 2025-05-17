@@ -228,6 +228,7 @@ type GatewayConfig struct {
 	// +optional
 	Ports []PortSpec `json:"ports,omitempty"` // Slice, builder checks for emptiness
 
+	InitContainer *corev1.Container
 	// --- Optional Standard Overrides ---
 
 	// Resources specifies CPU and memory resource requests and limits for the main container.

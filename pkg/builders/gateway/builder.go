@@ -45,7 +45,7 @@ var gatewayWorkloadGVK = schema.FromAPIVersionAndKind("apps/v1", "StatefulSet")
 // This function runs automatically when this package is imported.
 func init() {
 	// Register this builder using the component type name as the key ("gateway").
-	strategy.RegisterAppBuilderStrategy("gateway", &GatewayBuilderStrategy{})
+	strategy.RegisterAppBuilderStrategy("operator", &GatewayBuilderStrategy{})
 }
 
 // GetWorkloadGVK implements the AppBuilderStrategy interface.
@@ -110,7 +110,7 @@ func (b *GatewayBuilderStrategy) BuildObjects(ctx context.Context, k8sClient cli
 	// --- 1. Build Pod Template Spec ---
 	replicas := commonutil.GetInt32ValueOrDefault(gatewayConfig.Replicas, 1)
 
-	mainContainerSpec, err := buildGatewayMainContainerSpec(gatewayConfig)
+	mainContainerSpec, err := buildGatewayMainContainerSpec(gatewayConfig, instanceName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build Gateway main container spec for %s: %w", instanceName, err)
 	}
@@ -272,7 +272,7 @@ func (b *GatewayBuilderStrategy) BuildObjects(ctx context.Context, k8sClient cli
 // NOTE: These helpers remain within builder.go as they are specific to Gateway building logic.
 
 // buildGatewayMainContainerSpec builds the corev1.Container spec for the main gateway app.
-func buildGatewayMainContainerSpec(gatewayConfig *common.GatewayConfig) (*corev1.Container, error) {
+func buildGatewayMainContainerSpec(gatewayConfig *common.GatewayConfig, instanceName string) (*corev1.Container, error) {
 	logger := log.Log.WithName("gateway-container-builder")
 
 	imageName := builders.BuildImageName(gatewayConfig.Image.Repository, gatewayConfig.Image.Tag)
@@ -289,7 +289,7 @@ func buildGatewayMainContainerSpec(gatewayConfig *common.GatewayConfig) (*corev1
 	containerSecurityContext := builders.GetContainerSecurityContextOrDefault(gatewayConfig.ContainerSecurityContext)
 
 	container := corev1.Container{
-		Name:            builders.DeriveContainerName("gateway"),
+		Name:            builders.DeriveContainerName(instanceName),
 		Image:           imageName,
 		ImagePullPolicy: imagePullPolicy,
 		// Command:         gatewayConfig.Command, // Add if defined in common.GatewayConfig
@@ -351,9 +351,9 @@ func buildGatewayInitContainers(gatewayConfig *common.GatewayConfig, instanceNam
 	}
 
 	// Add custom init containers if defined
-	// if gatewayConfig.CustomInitContainers != nil {
-	//     // ... deep copy and append ...
-	// }
+	if gatewayConfig.InitContainer == nil {
+		return nil
+	}
 
 	return initContainers
 }

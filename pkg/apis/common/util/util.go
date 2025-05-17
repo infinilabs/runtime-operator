@@ -68,18 +68,21 @@ func UnmarshalAppSpecificConfig(appCompType string, rawProperties runtime.RawExt
 
 	// --- Type Mapping based on component type string ---
 	// Add cases for ALL supported application types.
-	switch appCompType {
-	case "opensearch":
-		specificConfig = &common.OpensearchClusterConfig{} // Must be defined in common.types
-	case "elasticsearch":
-		specificConfig = &common.ElasticsearchClusterConfig{} // Must be defined in common.types
-	case "gateway":
-		specificConfig = &common.GatewayConfig{} // Must be defined in common.types
-	// case "console": specificConfig = &common.ConsoleConfig{} // Add ConsoleConfig etc.
+	//switch appCompType {
+	//case "opensearch":
+	//	specificConfig = &common.OpensearchClusterConfig{} // Must be defined in common.types
+	//case "elasticsearch":
+	//	specificConfig = &common.ElasticsearchClusterConfig{} // Must be defined in common.types
+	//case "gateway":
+	//	specificConfig = &common.GatewayConfig{} // Must be defined in common.types
+	//// case "console": specificConfig = &common.ConsoleConfig{} // Add ConsoleConfig etc.
+	//
+	//default: // Unsupported component type
+	//	return nil, fmt.Errorf("unsupported component type '%s' for configuration unmarshalling", appCompType)
+	//}
 
-	default: // Unsupported component type
-		return nil, fmt.Errorf("unsupported component type '%s' for configuration unmarshalling", appCompType)
-	}
+	// 不需要区分不同的type
+	specificConfig = &common.GatewayConfig{}
 
 	// --- Perform Unmarshalling ---
 	// Use json.Unmarshal as RawExtension contains JSON/YAML bytes.
