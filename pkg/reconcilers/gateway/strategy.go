@@ -16,7 +16,7 @@ import (
 	// Import local types
 	appv1 "github.com/infinilabs/operator/api/app/v1"
 	"github.com/infinilabs/operator/internal/controller/common/kubeutil" // ApplyResult needed for Reconcile signature
-	"github.com/infinilabs/operator/pkg/apis/common"                     // Needed for GatewayConfig type assertion in CheckAppHealth
+	"github.com/infinilabs/operator/pkg/apis/common"                     // Needed for ResourceConfig type assertion in CheckAppHealth
 	common_reconcilers "github.com/infinilabs/operator/pkg/reconcilers/common"
 	"github.com/infinilabs/operator/pkg/strategy"
 
@@ -101,7 +101,7 @@ func (s *GatewayReconcileStrategy) CheckAppHealth(ctx context.Context, k8sClient
 	logger.V(1).Info("Executing Gateway application health check (Strategy CheckAppHealth method)")
 
 	// Type assert the specific config
-	gatewayConfig, ok := appSpecificConfig.(*common.GatewayConfig)
+	gatewayConfig, ok := appSpecificConfig.(*common.ResourceConfig)
 	if !ok || gatewayConfig == nil {
 		return false, "Invalid or missing Gateway config for health check", fmt.Errorf("invalid config type %T", appSpecificConfig)
 	}

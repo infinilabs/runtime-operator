@@ -61,7 +61,7 @@ type ProbesConfig struct {
 }
 
 // ServiceSpecPart is a helper struct grouping common Service configuration fields.
-// Used within specific component configs like GatewayConfig.
+// Used within specific component configs like ResourceConfig.
 type ServiceSpecPart struct {
 	// Type specifies the Kubernetes Service type (ClusterIP, NodePort, LoadBalancer).
 	// Defaults to ClusterIP if not specified.
@@ -205,10 +205,10 @@ type AppConfigData map[string]string
 // --- Application Specific Configuration Structures ---
 // Define the STRUCTURE of the config provided in ApplicationComponent.Properties for each type.
 
-// GatewayConfig defines the expected structure within ApplicationComponent.Properties when Type is "gateway".
-// GatewayConfig defines the expected structure within ApplicationComponent.Properties when Type is "gateway".
+// ResourceConfig defines the expected structure within ApplicationComponent.Properties when Type is "gateway".
+// ResourceConfig defines the expected structure within ApplicationComponent.Properties when Type is "gateway".
 // It includes core workload settings and potentially overrides for common components.
-type GatewayConfig struct {
+type ResourceConfig struct {
 	// --- Core Workload Settings ---
 
 	// Replicas defines the number of desired pods.
