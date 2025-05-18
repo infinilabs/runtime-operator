@@ -220,7 +220,9 @@ type ResourceConfig struct {
 	// Image specifies the container image details.
 	// +kubebuilder:validation:Required
 	// +optional
-	Image *ImageSpec `json:"image,omitempty"` // Pointer as it's checked for nil
+	Image   *ImageSpec `json:"image,omitempty"` // Pointer as it's checked for nil
+	Command []string   `json:"command,omitempty" protobuf:"bytes,3,rep,name=command"`
+	Args    []string   `json:"args,omitempty" protobuf:"bytes,4,rep,name=args"`
 
 	// Ports defines the network ports exposed by the gateway container.
 	// +kubebuilder:validation:Required
