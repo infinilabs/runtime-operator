@@ -22,7 +22,7 @@ package v1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime" // Required for RawExtension
+	"k8s.io/apimachinery/pkg/runtime"
 )
 
 // --- Constants for Phase and Conditions ---

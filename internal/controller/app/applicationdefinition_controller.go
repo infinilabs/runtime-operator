@@ -367,24 +367,6 @@ func (r *ApplicationDefinitionReconciler) processComponentsAndBuildObjects(ctx c
 
 		compStatus.Message = "Processing" // Update status message
 
-		// 1. Get ComponentDefinition
-		//compDef, err := r.getComponentDefinition(ctx, appComp.Type, appDef.Namespace)
-		//if err != nil {
-		//	errMsg := fmt.Sprintf("Failed to get ComponentDefinition '%s': %v", appComp.Type, err)
-		//	compLogger.Error(err, errMsg)
-		//	r.updateComponentStatusWithError(compStatus, "CompDefNotFound", errMsg)
-		//	return fmt.Errorf(errMsg) // Return wrapped error
-		//}
-		//// [Added] Check if CompDef Spec is valid
-		//if compDef.Spec == (coreinfrav1.ComponentDefinitionSpec{}) {
-		//	errMsg := fmt.Sprintf("ComponentDefinition '%s' has an empty or invalid spec", appComp.Type)
-		//	compLogger.Error(nil, errMsg) // Use nil error as we constructed the message
-		//	r.updateComponentStatusWithError(compStatus, "InvalidCompDefSpec", errMsg)
-		//	return fmt.Errorf(errMsg)
-		//}
-		//compStatus.Kind = compDef.Spec.Workload.Kind // Update status with Kind/APIVersion from CompDef
-		//compStatus.APIVersion = compDef.Spec.Workload.APIVersion
-
 		// 2. Unmarshal specific configuration
 		appSpecificConfig, err := commonutil.UnmarshalAppSpecificConfig(appComp.Type, appComp.Properties)
 		if err != nil {
@@ -730,19 +712,6 @@ func (r *ApplicationDefinitionReconciler) handleReconcileError(ctx context.Conte
 	// Return the original critical error to controller-runtime for potential backoff
 	return ctrl.Result{}, state.firstError
 }
-
-//// getComponentDefinition fetches the ComponentDefinition CR.
-//func (r *ApplicationDefinitionReconciler) getComponentDefinition(ctx context.Context, compType, namespace string) (*coreinfrav1.ComponentDefinition, error) {
-//	compDef := &coreinfrav1.ComponentDefinition{}
-//	// ComponentDefinitions are typically Cluster-scoped or in a central namespace.
-//	// Assuming Namespace scope for now based on RBAC and usage. Adjust if Cluster-scoped.
-//	compDefKey := types.NamespacedName{Name: compType, Namespace: namespace}
-//	if err := r.Get(ctx, compDefKey, compDef); err != nil {
-//		// Wrap error for clarity
-//		return nil, fmt.Errorf("failed to get ComponentDefinition '%s/%s': %w", namespace, compType, err)
-//	}
-//	return compDef, nil
-//}
 
 // updateStatusIfNeeded compares current and original status and updates if necessary.
 func (r *ApplicationDefinitionReconciler) updateStatusIfNeeded(ctx context.Context, currentApp *appv1.ApplicationDefinition, originalStatus *appv1.ApplicationDefinitionStatus) (bool, error) {
