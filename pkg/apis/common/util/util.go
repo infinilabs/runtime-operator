@@ -74,7 +74,7 @@ func UnmarshalAppSpecificConfig(appCompType string, rawProperties runtime.RawExt
 	//case "elasticsearch":
 	//	specificConfig = &common.ElasticsearchClusterConfig{} // Must be defined in common.types
 	//case "gateway":
-	//	specificConfig = &common.GatewayConfig{} // Must be defined in common.types
+	//	specificConfig = &common.ResourceConfig{} // Must be defined in common.types
 	//// case "console": specificConfig = &common.ConsoleConfig{} // Add ConsoleConfig etc.
 	//
 	//default: // Unsupported component type
@@ -82,7 +82,7 @@ func UnmarshalAppSpecificConfig(appCompType string, rawProperties runtime.RawExt
 	//}
 
 	// 不需要区分不同的type
-	specificConfig = &common.GatewayConfig{}
+	specificConfig = &common.ResourceConfig{}
 
 	// --- Perform Unmarshalling ---
 	// Use json.Unmarshal as RawExtension contains JSON/YAML bytes.
