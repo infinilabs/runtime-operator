@@ -334,6 +334,14 @@ spec:
         image:
           repository: docker.1ms.run/infinilabs/console # 目标镜像
           tag: 1.29.4-2108 # 镜像版本
+        command: # 容器启动命令
+          - sh
+          - -c
+          - |
+            if [ ! -e /config_bak/certs ]; then
+              cp -rf /config/* /config_bak
+            fi
+            exec /console
         ports:
           - name: http-9000 # 应用端口
             containerPort: 9000

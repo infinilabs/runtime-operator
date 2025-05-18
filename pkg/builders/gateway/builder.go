@@ -293,8 +293,8 @@ func buildGatewayMainContainerSpec(gatewayConfig *common.ResourceConfig, instanc
 		Name:            builders.DeriveContainerName(instanceName),
 		Image:           imageName,
 		ImagePullPolicy: imagePullPolicy,
-		// Command:         gatewayConfig.Command, // Add if defined in common.ResourceConfig
-		// Args:            gatewayConfig.Args,    // Add if defined in common.ResourceConfig
+		Command:         gatewayConfig.Command, // Add if defined in common.ResourceConfig
+		Args:            gatewayConfig.Args,    // Add if defined in common.ResourceConfig
 		Ports:           k8sPorts,
 		Env:             gatewayConfig.Env,
 		EnvFrom:         gatewayConfig.EnvFrom,
@@ -311,6 +311,11 @@ func buildGatewayMainContainerSpec(gatewayConfig *common.ResourceConfig, instanc
 
 // buildGatewayInitContainers builds necessary init containers for the gateway.
 func buildGatewayInitContainers(gatewayConfig *common.ResourceConfig, instanceName string) []corev1.Container {
+	// Add custom init containers if defined
+	if gatewayConfig.InitContainer == nil {
+		return nil
+	}
+
 	initContainers := []corev1.Container{}
 	logger := log.Log.WithName("gateway-init-builder").WithValues("instance", instanceName)
 	isStatefulSet := (gatewayWorkloadGVK.Kind == "StatefulSet")
@@ -349,11 +354,6 @@ func buildGatewayInitContainers(gatewayConfig *common.ResourceConfig, instanceNa
 		initContainers = append(initContainers, ensureDirInit)
 	} else {
 		logger.V(1).Info("Skipping data directory init container")
-	}
-
-	// Add custom init containers if defined
-	if gatewayConfig.InitContainer == nil {
-		return nil
 	}
 
 	return initContainers
