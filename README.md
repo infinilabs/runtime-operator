@@ -309,9 +309,10 @@ spec:
 
 ```
 如上yaml所示，各个配置项目有详细的注释说明和示例，我们创建了一个名为`infini-gw`的gateway实例，gateway的pod被创建在`default`命名空间下，statefulset名称为`infini-gw`, pod的名称为`infini-gw-0`，pod的service名称为`infini-gw`，pod的configmap名称为`infini-gw-config`，pod的pvc名称为`data-infini-gw-0`，pod的serviceaccount名称为默认的`default`。  
-整个配置已经可以直接使用，根据不同用户的需求，用户只需要关注两处配置就可以了，
-  1. gateway.yml: 这里是gateway的配置文件，用户可以根据自己的需求修改配置文件的内容。
-  2. tag: 这是gateway的docker镜像版本号，用户可以根据自己的需求修改版本号。
+整个配置已经可以直接使用，根据不同用户的需求，用户只需要关注下面几处配置就可以了，
+  1. namespace: 指定资源部署的的命名空间。
+  2. gateway.yml: 这里是gateway的配置文件，用户可以根据自己的需求修改配置文件的内容。
+  3. tag: 这是gateway的docker镜像版本号，用户可以根据自己的需求修改版本号。
 
 
 - ### console
@@ -409,6 +410,7 @@ spec:
                 token_url: https://github.com/login/oauth/access_token
 ```
 
-如上yaml所示，`console`的配置文件和`gateway`的配置文件类似，用户只需要关注两处配置就可以了，
-  1. security.yml: 这里是console的配置文件，用户可以根据自己的需求修改配置文件的内容。
-  2. tag: 这是console的docker镜像版本号，用户可以根据自己的需求修改版本号。
+如上yaml所示，`console`的配置文件和`gateway`的配置文件类似，用户只需要关注下面几处配置就可以了，
+  1. namespace: 指定资源部署的的命名空间。
+  2. security.yml: 这里是console的配置文件，用户可以根据自己的需求修改配置文件的内容。
+  3. tag: 这是console的docker镜像版本号，用户可以根据自己的需求修改版本号。
