@@ -48,7 +48,7 @@ func BuildSecretsFromDataMap(
 	secretType corev1.SecretType, // Specify type (e.g., Opaque)
 ) ([]client.Object, error) { // Return client.Object slice
 
-	if data == nil || len(data) == 0 {
+	if len(data) == 0 {
 		return []client.Object{}, nil
 	}
 

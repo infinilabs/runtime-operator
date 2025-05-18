@@ -30,6 +30,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log" // Use controller-runtime logger
 )
 
+const (
+	StatefulSetType = "StatefulSet"
+)
+
 // --- Gateway Builder Strategy Implementation ---
 
 // Ensure our builder implementation complies with the strategy interface
@@ -39,7 +43,7 @@ var _ strategy.AppBuilderStrategy = &GatewayBuilderStrategy{}
 type GatewayBuilderStrategy struct{}
 
 // Define the expected GVK for Gateway's primary workload (assuming StatefulSet).
-var gatewayWorkloadGVK = schema.FromAPIVersionAndKind("apps/v1", "StatefulSet")
+var gatewayWorkloadGVK = schema.FromAPIVersionAndKind("apps/v1", StatefulSetType)
 
 // init registers this specific builder strategy with the central registry.
 // This function runs automatically when this package is imported.
@@ -54,6 +58,37 @@ func (b *GatewayBuilderStrategy) GetWorkloadGVK() schema.GroupVersionKind {
 	return gatewayWorkloadGVK
 }
 
+func (b *GatewayBuilderStrategy) verifyParameters(gatewayConfig *common.ResourceConfig, appComp *appv1.ApplicationComponent) error {
+	if gatewayConfig == nil {
+		return fmt.Errorf("gateway configuration (properties) is mandatory but missing or empty for component '%s'", appComp.Name)
+	}
+
+	// Perform validation of the specific ResourceConfig structure.
+	if gatewayConfig.Replicas == nil {
+		return fmt.Errorf("gateway config missing required 'replicas' for component '%s'", appComp.Name)
+	}
+	if gatewayConfig.Image == nil || (gatewayConfig.Image.Repository == "" && gatewayConfig.Image.Tag == "") {
+		return fmt.Errorf("gateway config is missing required 'image' for component '%s'", appComp.Name)
+	}
+	if gatewayConfig.Ports == nil || len(gatewayConfig.Ports) == 0 {
+		return fmt.Errorf("gateway config is missing required 'ports' configuration for component '%s'", appComp.Name)
+	}
+	isStatefulSet := b.GetWorkloadGVK().Kind == StatefulSetType
+	if isStatefulSet {
+		if gatewayConfig.Storage == nil || !gatewayConfig.Storage.Enabled {
+			return fmt.Errorf("gateway workload is StatefulSet but Storage configuration is missing or disabled for component '%s'", appComp.Name)
+		}
+		if gatewayConfig.Storage.Enabled && gatewayConfig.Storage.Size == nil {
+			return fmt.Errorf("gateway Storage is enabled but 'size' is missing for component '%s'", appComp.Name)
+		}
+		if gatewayConfig.Storage.Enabled && gatewayConfig.Storage.MountPath == "" {
+			return fmt.Errorf("gateway Storage is enabled but 'mountPath' is missing for component '%s'", appComp.Name)
+		}
+	}
+
+	return nil
+}
+
 // BuildObjects implements the AppBuilderStrategy interface.
 func (b *GatewayBuilderStrategy) BuildObjects(ctx context.Context, k8sClient client.Client,
 	scheme *runtime.Scheme, owner client.Object, appDef *appv1.ApplicationDefinition,
@@ -65,31 +100,10 @@ func (b *GatewayBuilderStrategy) BuildObjects(ctx context.Context, k8sClient cli
 	if !ok {
 		return nil, fmt.Errorf("internal error: expected *common.ResourceConfig for component '%s' but received type %T", appComp.Name, appSpecificConfig)
 	}
-	if gatewayConfig == nil {
-		return nil, fmt.Errorf("gateway configuration (properties) is mandatory but missing or empty for component '%s'", appComp.Name)
-	}
 
 	// Perform validation of the specific ResourceConfig structure.
-	if gatewayConfig.Replicas == nil {
-		return nil, fmt.Errorf("gateway config missing required 'replicas' for component '%s'", appComp.Name)
-	}
-	if gatewayConfig.Image == nil || (gatewayConfig.Image.Repository == "" && gatewayConfig.Image.Tag == "") {
-		return nil, fmt.Errorf("gateway config is missing required 'image' for component '%s'", appComp.Name)
-	}
-	if gatewayConfig.Ports == nil || len(gatewayConfig.Ports) == 0 {
-		return nil, fmt.Errorf("gateway config is missing required 'ports' configuration for component '%s'", appComp.Name)
-	}
-	isStatefulSet := (b.GetWorkloadGVK().Kind == "StatefulSet")
-	if isStatefulSet {
-		if gatewayConfig.Storage == nil || !gatewayConfig.Storage.Enabled {
-			return nil, fmt.Errorf("gateway workload is StatefulSet but Storage configuration is missing or disabled for component '%s'", appComp.Name)
-		}
-		if gatewayConfig.Storage.Enabled && gatewayConfig.Storage.Size == nil {
-			return nil, fmt.Errorf("gateway Storage is enabled but 'size' is missing for component '%s'", appComp.Name)
-		}
-		if gatewayConfig.Storage.Enabled && gatewayConfig.Storage.MountPath == "" {
-			return nil, fmt.Errorf("gateway Storage is enabled but 'mountPath' is missing for component '%s'", appComp.Name)
-		}
+	if err := b.verifyParameters(gatewayConfig, appComp); err != nil {
+		return nil, fmt.Errorf("failed to validate ResourceConfig for component '%s': %w", appComp.Name, err)
 	}
 	// TODO: Add more Gateway specific validation if needed
 
@@ -241,6 +255,7 @@ func (b *GatewayBuilderStrategy) BuildObjects(ctx context.Context, k8sClient cli
 	}
 
 	// --- 7. Build PersistentVolumeClaim (for Deployment shared PVC) ---
+	isStatefulSet := (gatewayWorkloadGVK.Kind == StatefulSetType)
 	if !isStatefulSet && gatewayConfig.Persistence != nil && gatewayConfig.Persistence.Enabled {
 		pvcName := builders.DeriveResourceName(instanceName) + "-pvc"
 		logger.V(1).Info("Building shared PersistentVolumeClaim object", "name", pvcName)
@@ -318,7 +333,7 @@ func buildGatewayInitContainers(gatewayConfig *common.ResourceConfig, instanceNa
 
 	initContainers := []corev1.Container{}
 	logger := log.Log.WithName("gateway-init-builder").WithValues("instance", instanceName)
-	isStatefulSet := (gatewayWorkloadGVK.Kind == "StatefulSet")
+	isStatefulSet := (gatewayWorkloadGVK.Kind == StatefulSetType)
 
 	var persistentMountPath string
 	var persistentVolumeName string
@@ -363,7 +378,7 @@ func buildGatewayInitContainers(gatewayConfig *common.ResourceConfig, instanceNa
 func buildGatewayVolumes(gatewayConfig *common.ResourceConfig, instanceName string) []corev1.Volume {
 	volumes := []corev1.Volume{}
 	logger := log.Log.WithName("gateway-volume-builder").WithValues("instance", instanceName)
-	isStatefulSet := (gatewayWorkloadGVK.Kind == "StatefulSet")
+	isStatefulSet := (gatewayWorkloadGVK.Kind == StatefulSetType)
 
 	cmVolumes := builders.BuildVolumesFromConfigMaps(gatewayConfig.ConfigMounts)
 	volumes = append(volumes, cmVolumes...)
@@ -400,7 +415,7 @@ func buildGatewayVolumes(gatewayConfig *common.ResourceConfig, instanceName stri
 func buildGatewayVolumeMounts(gatewayConfig *common.ResourceConfig, instanceName string) []corev1.VolumeMount {
 	allVolumeMounts := []corev1.VolumeMount{}
 	logger := log.Log.WithName("gateway-mount-builder").WithValues("instance", instanceName)
-	isStatefulSet := (gatewayWorkloadGVK.Kind == "StatefulSet")
+	isStatefulSet := (gatewayWorkloadGVK.Kind == StatefulSetType)
 
 	cmMounts := builders.BuildVolumeMountsFromConfigMaps(gatewayConfig.ConfigMounts)
 	allVolumeMounts = append(allVolumeMounts, cmMounts...)

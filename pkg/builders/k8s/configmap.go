@@ -32,7 +32,7 @@ func BuildConfigMap(
 // If specific files need to be Secrets, the app-specific builder should filter them out
 // before calling this function.
 func BuildConfigMapsFromAppData(appConfigData map[string]string, resourceName string, namespace string, labels map[string]string) ([]client.Object, error) { // Return client.Object slice
-	if appConfigData == nil || len(appConfigData) == 0 {
+	if len(appConfigData) == 0 {
 		return []client.Object{}, nil // Nothing to build
 	}
 

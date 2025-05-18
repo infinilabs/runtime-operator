@@ -291,12 +291,12 @@ func checkPdbHealth(pdb *policyv1.PodDisruptionBudget) (bool, string, error) {
 	return false, fmt.Sprintf("PDB not healthy (%d/%d healthy, %d disruptions allowed)", pdb.Status.CurrentHealthy, pdb.Status.DesiredHealthy, pdb.Status.DisruptionsAllowed), nil
 }
 
-// findDeploymentCondition finds a condition of a specific type in a Deployment's conditions.
-func findDeploymentCondition(conditions []appsv1.DeploymentCondition, condType appsv1.DeploymentConditionType) *appsv1.DeploymentCondition {
-	for i := range conditions {
-		if conditions[i].Type == condType {
-			return &conditions[i] // Return pointer to existing condition
-		}
-	}
-	return nil // Condition not found
-}
+//// findDeploymentCondition finds a condition of a specific type in a Deployment's conditions.
+//func findDeploymentCondition(conditions []appsv1.DeploymentCondition, condType appsv1.DeploymentConditionType) *appsv1.DeploymentCondition {
+//	for i := range conditions {
+//		if conditions[i].Type == condType {
+//			return &conditions[i] // Return pointer to existing condition
+//		}
+//	}
+//	return nil // Condition not found
+//}
