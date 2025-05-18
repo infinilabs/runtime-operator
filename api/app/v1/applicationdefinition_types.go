@@ -155,14 +155,14 @@ type ApplicationDefinitionStatus struct {
 
 // --- Root Object ---
 
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
-//+kubebuilder:resource:scope=Namespaced,path=applicationdefinitions,shortName=appdef,categories={infini,app}
-//+kubebuilder:printcolumn:name="Phase",type=string,JSONPath=".status.phase",description="The current reconciliation phase of the application."
-//+kubebuilder:printcolumn:name="Ready",type=string,JSONPath=".status.conditions[?(@.type=='Ready')].status",description="The overall readiness status of the application."
-//+kubebuilder:printcolumn:name="Components",type=string,JSONPath=".spec.components[*].name",description="Names of the components defined in the application."
-//+kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
-//+kubebuilder:storageversion
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
+// +kubebuilder:resource:scope=Namespaced,path=applicationdefinitions,shortName=appdef,categories={infini,app}
+// +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=".status.phase",description="The current reconciliation phase of the application."
+// +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=".status.conditions[?(@.type=='Ready')].status",description="The overall readiness status of the application."
+// +kubebuilder:printcolumn:name="Components",type=string,JSONPath=".spec.components[*].name",description="Names of the components defined in the application."
+// +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
+// +kubebuilder:storageversion
 
 // ApplicationDefinition is the Schema for the applicationdefinitions API, defining a composite application.
 type ApplicationDefinition struct {

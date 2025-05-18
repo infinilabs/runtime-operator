@@ -31,7 +31,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -39,7 +38,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	appv1 "github.com/infinilabs/operator/api/app/v1"
-	coreinfrav1 "github.com/infinilabs/operator/api/v1"
 	"github.com/infinilabs/operator/internal/controller/common/kubeutil"
 	"github.com/infinilabs/operator/pkg/apis/common" // Needed for OperatorName constant
 	commonutil "github.com/infinilabs/operator/pkg/apis/common/util"
@@ -733,18 +731,18 @@ func (r *ApplicationDefinitionReconciler) handleReconcileError(ctx context.Conte
 	return ctrl.Result{}, state.firstError
 }
 
-// getComponentDefinition fetches the ComponentDefinition CR.
-func (r *ApplicationDefinitionReconciler) getComponentDefinition(ctx context.Context, compType, namespace string) (*coreinfrav1.ComponentDefinition, error) {
-	compDef := &coreinfrav1.ComponentDefinition{}
-	// ComponentDefinitions are typically Cluster-scoped or in a central namespace.
-	// Assuming Namespace scope for now based on RBAC and usage. Adjust if Cluster-scoped.
-	compDefKey := types.NamespacedName{Name: compType, Namespace: namespace}
-	if err := r.Get(ctx, compDefKey, compDef); err != nil {
-		// Wrap error for clarity
-		return nil, fmt.Errorf("failed to get ComponentDefinition '%s/%s': %w", namespace, compType, err)
-	}
-	return compDef, nil
-}
+//// getComponentDefinition fetches the ComponentDefinition CR.
+//func (r *ApplicationDefinitionReconciler) getComponentDefinition(ctx context.Context, compType, namespace string) (*coreinfrav1.ComponentDefinition, error) {
+//	compDef := &coreinfrav1.ComponentDefinition{}
+//	// ComponentDefinitions are typically Cluster-scoped or in a central namespace.
+//	// Assuming Namespace scope for now based on RBAC and usage. Adjust if Cluster-scoped.
+//	compDefKey := types.NamespacedName{Name: compType, Namespace: namespace}
+//	if err := r.Get(ctx, compDefKey, compDef); err != nil {
+//		// Wrap error for clarity
+//		return nil, fmt.Errorf("failed to get ComponentDefinition '%s/%s': %w", namespace, compType, err)
+//	}
+//	return compDef, nil
+//}
 
 // updateStatusIfNeeded compares current and original status and updates if necessary.
 func (r *ApplicationDefinitionReconciler) updateStatusIfNeeded(ctx context.Context, currentApp *appv1.ApplicationDefinition, originalStatus *appv1.ApplicationDefinitionStatus) (bool, error) {
@@ -990,11 +988,3 @@ func (r *ApplicationDefinitionReconciler) findAppDefsForCompDef(ctx context.Cont
 	return requests
 }
 */
-
-// Helper function for min, remove if Go version >= 1.21 which has built-in min
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
