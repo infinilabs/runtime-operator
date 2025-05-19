@@ -21,10 +21,8 @@ limitations under the License.
 package v1
 
 import (
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-
 	"github.com/infinilabs/operator/pkg/apis/common"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // WorkloadReference uses the common definition.
@@ -88,12 +86,6 @@ type ComponentDefinitionList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []ComponentDefinition `json:"items"`
-}
-
-// AddScheme adds the ComponentDefinition types to the given scheme.
-func AddScheme(scheme *runtime.Scheme) error {
-	// Register types defined in THIS package's SchemeBuilder
-	return SchemeBuilder.AddToScheme(scheme)
 }
 
 func init() {

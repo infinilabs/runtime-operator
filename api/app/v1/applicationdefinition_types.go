@@ -182,12 +182,6 @@ type ApplicationDefinitionList struct {
 	Items           []ApplicationDefinition `json:"items"`
 }
 
-// AddScheme adds the ApplicationDefinition types to the given scheme.
-// Deprecated: Use SchemeBuilder.AddToScheme directly.
-func AddScheme(scheme *runtime.Scheme) error {
-	return SchemeBuilder.AddToScheme(scheme)
-}
-
 func init() {
 	SchemeBuilder.Register(&ApplicationDefinition{}, &ApplicationDefinitionList{})
 }
