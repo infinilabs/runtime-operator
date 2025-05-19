@@ -229,13 +229,6 @@ func (r *ApplicationDefinitionReconciler) Reconcile(ctx context.Context, req ctr
 
 // initializeComponentStatuses populates the initial status map.
 func (r *ApplicationDefinitionReconciler) initializeComponentStatuses(state *reconcileState) error {
-	// existingStatuses := make(map[string]appv1.ComponentStatusReference)
-	// if state.originalStatus != nil {
-	// 	for _, s := range state.originalStatus.Components {
-	// 		existingStatuses[s.Name] = s
-	// 	}
-	// }
-
 	names := make(map[string]bool)
 	for _, comp := range state.appDef.Spec.Components {
 		if comp.Name == "" {
@@ -246,17 +239,11 @@ func (r *ApplicationDefinitionReconciler) initializeComponentStatuses(state *rec
 		}
 		names[comp.Name] = true
 
-		// // Preserve existing status if component still exists, otherwise initialize
-		// if existingStatus, ok := existingStatuses[comp.Name]; ok {
-		// 	// Maybe reset message if phase changes? For now, preserve fully.
-		// 	state.componentStatuses[comp.Name] = existingStatus.DeepCopy()
-		// } else {
 		state.componentStatuses[comp.Name] = &appv1.ComponentStatusReference{
 			Name:    comp.Name,
 			Health:  false, // Default to unhealthy
 			Message: "Initializing",
 		}
-		// }
 	}
 	// TODO: Optionally remove statuses for components that are no longer in the spec?
 	// This might be better handled by K8s GC based on owner refs.
@@ -359,9 +346,8 @@ func (r *ApplicationDefinitionReconciler) processComponentsAndBuildObjects(ctx c
 
 	for i := range appDef.Spec.Components {
 		appComp := appDef.Spec.Components[i] // Use index to get mutable reference if needed, but copy is safer
-		if appComp.Type == "" {
-			appComp.Type = "operator"
-		}
+		appComp.Type = "operator"
+
 		compLogger := logger.WithValues("component", appComp.Name, "componentType", appComp.Type)
 		compStatus := state.componentStatuses[appComp.Name] // Get status entry
 
@@ -908,52 +894,5 @@ func (r *ApplicationDefinitionReconciler) SetupWithManager(mgr ctrl.Manager) err
 		builder = builder.Owns(t)
 	}
 
-	// // Optionally watch ComponentDefinitions if changes should trigger AppDef reconcile
-	// builder = builder.Watches(
-	// 	&coreinfrav1.ComponentDefinition{},
-	// 	handler.EnqueueRequestsFromMapFunc(r.findAppDefsForCompDef),
-	// 	builder.WithPredicates(predicate.GenerationChangedPredicate{}), // Trigger only on spec changes
-	// )
-
 	return builder.Complete(r)
 }
-
-/*
-// findAppDefsForCompDef is a MapFunc to find ApplicationDefinitions using a ComponentDefinition.
-// Optional: Use only if watching ComponentDefinitions.
-func (r *ApplicationDefinitionReconciler) findAppDefsForCompDef(ctx context.Context, compDef client.Object) []reconcile.Request {
-	compDefName := compDef.GetName()
-	// Assuming ComponentDefinitions are namespaced同AppDef for simplicity here. Adjust if cluster-scoped.
-	compDefNamespace := compDef.GetNamespace()
-	logger := log.FromContext(ctx).WithValues("componentdefinition", compDef.GetName())
-	logger.V(1).Info("ComponentDefinition changed, finding associated ApplicationDefinitions")
-
-	appList := &appv1.ApplicationDefinitionList{}
-	// List AppDefs in the same namespace that might use this CompDef type
-	// This list might be broad; refine if possible (e.g., using labels or indexes).
-	listOpts := &client.ListOptions{Namespace: compDefNamespace}
-	if err := r.List(ctx, appList, listOpts); err != nil {
-		logger.Error(err, "Failed to list ApplicationDefinitions for ComponentDefinition watcher")
-		return []reconcile.Request{}
-	}
-
-	requests := make([]reconcile.Request, 0, len(appList.Items))
-	for _, appDef := range appList.Items {
-		for _, comp := range appDef.Spec.Components {
-			if comp.Type == compDefName {
-				req := reconcile.Request{
-					NamespacedName: types.NamespacedName{
-						Name:      appDef.Name,
-						Namespace: appDef.Namespace,
-					},
-				}
-				requests = append(requests, req)
-				logger.V(1).Info("Found matching ApplicationDefinition", "appdefinition", req.NamespacedName)
-				break // Found one component using it, add request for this AppDef
-			}
-		}
-	}
-	logger.V(1).Info("Finished finding ApplicationDefinitions", "count", len(requests))
-	return requests
-}
-*/

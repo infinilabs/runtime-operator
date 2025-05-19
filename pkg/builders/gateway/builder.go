@@ -25,7 +25,6 @@ import (
 
 	// Import strategy package for the interface definition and registry access
 	"github.com/infinilabs/operator/pkg/strategy"
-
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log" // Use controller-runtime logger
 )
@@ -272,20 +271,9 @@ func (b *GatewayBuilderStrategy) BuildObjects(ctx context.Context, k8sClient cli
 		}
 	}
 
-	// --- 8. Build PodDisruptionBudget (Optional) ---
-	// Uncomment and adapt if needed
-	/*
-		if gatewayConfig.PodDisruptionBudget != nil {
-			// ... build PDB logic ...
-		}
-	*/
-
 	logger.Info("Finished building all Kubernetes objects for Gateway", "count", len(builtObjects))
 	return builtObjects, nil // Success!
 }
-
-// --- Application Specific Builder Helpers (internal to this package) ---
-// NOTE: These helpers remain within builder.go as they are specific to Gateway building logic.
 
 // buildGatewayMainContainerSpec builds the corev1.Container spec for the main gateway app.
 func buildGatewayMainContainerSpec(gatewayConfig *common.ResourceConfig, instanceName string) (*corev1.Container, error) {
@@ -403,11 +391,6 @@ func buildGatewayVolumes(gatewayConfig *common.ResourceConfig, instanceName stri
 		})
 	}
 
-	// Add AdditionalVolumes if defined
-	// if gatewayConfig.AdditionalVolumes != nil {
-	//     // ... build and append ...
-	// }
-
 	return volumes
 }
 
@@ -438,11 +421,6 @@ func buildGatewayVolumeMounts(gatewayConfig *common.ResourceConfig, instanceName
 		logger.V(1).Info("Built volume mounts from Storage", "count", len(storageMounts))
 	}
 
-	// Add AdditionalVolumeMounts if defined
-	// if gatewayConfig.VolumeMounts != nil {
-	//     // ... build and append ...
-	// }
-
 	return allVolumeMounts
 }
 
@@ -457,16 +435,11 @@ func ShouldBuildClientService(svcConfig *common.ServiceSpecPart) bool {
 	}
 	// Check if type is explicitly Headless (ClusterIP + ClusterIPNone)
 	if svcConfig.Type != nil && *svcConfig.Type == corev1.ServiceTypeClusterIP {
-		// Check if ClusterIP field exists in ServiceSpecPart and is "None"
-		// if svcConfig.ClusterIP != nil && *svcConfig.ClusterIP == corev1.ClusterIPNone {
-		//     return false
-		// }
-		// Assuming ClusterIP field is NOT in ServiceSpecPart for simplicity now.
-		// If Type is ClusterIP, it's not headless unless ClusterIP=None, so build it.
+		return true
 	}
 	// If Type is NodePort, LoadBalancer, or nil (defaults to ClusterIP), build it.
 	// Explicitly check against ClusterIPNone just in case type was set but ClusterIP wasn't
-	if svcConfig.Type != nil && *svcConfig.Type == corev1.ServiceType(corev1.ClusterIPNone) { // Explicit check against "None" string constant
+	if svcConfig.Type != nil && *svcConfig.Type == corev1.ClusterIPNone { // Explicit check against "None" string constant
 		return false
 	}
 

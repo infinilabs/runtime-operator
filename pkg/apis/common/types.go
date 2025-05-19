@@ -8,7 +8,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	policyv1 "k8s.io/api/policy/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
-	"k8s.io/apimachinery/pkg/runtime" // Needed for RawExtension in app-specific types if used
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
@@ -76,20 +75,6 @@ type ServiceSpecPart struct {
 	// Annotations specific to the Service resource.
 	// +optional
 	Annotations map[string]string `json:"annotations,omitempty"`
-
-	// HeadlessServiceName explicitly sets the name for the Headless Service (if different from default convention).
-	// Only relevant for StatefulSet workloads.
-	// +optional
-	// HeadlessServiceName *string `json:"headlessServiceName,omitempty"` // Example if needed
-
-	// Add other common Service Spec fields if needed for configuration:
-	// +optional
-	// ClusterIP *string `json:"clusterIP,omitempty"`
-	// +optional
-	// SessionAffinity *corev1.ServiceAffinity `json:"sessionAffinity,omitempty"`
-	// +optional
-	// LoadBalancerIP *string `json:"loadBalancerIP,omitempty"`
-	// etc.
 }
 
 // PersistenceSpec defines configuration for a shared PersistentVolumeClaim (for Deployment).
@@ -387,14 +372,6 @@ type ElasticsearchNodePoolSpec struct {
 	Roles     []string      `json:"roles"`
 	Resources ResourcesSpec `json:"resources"`
 	Storage   StorageSpec   `json:"storage"`
-}
-
-// AddScheme adds the types in this package to the given scheme.
-func AddScheme(scheme *runtime.Scheme) error {
-	// Register application-specific config types if they need to be handled by Scheme directly (e.g., for conversion).
-	// Generally not needed if unmarshalling directly from RawExtension via json.Unmarshal.
-	// err := scheme.AddKnownTypes(SchemeGroupVersion, &OpensearchClusterConfig{})
-	return nil
 }
 
 // init function registers schemes or helpers if needed (usually empty here).
