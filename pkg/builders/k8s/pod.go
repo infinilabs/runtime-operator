@@ -4,7 +4,6 @@ package k8s
 import (
 	"fmt" // For potential error formatting
 
-	"github.com/infinilabs/operator/pkg/apis/common"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -76,85 +75,6 @@ func BuildPodTemplateSpec(
 	}
 
 	return podTemplate, nil // Return the built Pod Template Spec pointer
-}
-
-// BuildMainContainerSpec builds the specification for the primary application container (corev1.Container).
-// This helper is called by application-specific builders.
-// It maps standard common config fields OR direct K8s types to corev1.Container spec fields.
-// VolumeMounts list is PASSED IN, aggregated by the caller.
-func BuildMainContainerSpec(
-	// --- Basic Container Info ---
-	containerName string, // Derived name (e.g., "gateway", "opensearch")
-	image common.ImageSpec, // Common ImageSpec struct (value type)
-	command []string, // Optional Command override slice
-	args []string, // Optional Args slice
-	workingDir string, // Optional Working Directory string
-
-	// --- Container Configuration ---
-	ports []common.PortSpec, // Slice of common PortSpec
-	env []corev1.EnvVar, // Slice of K8s EnvVar (value type)
-	envFrom []corev1.EnvFromSource, // Slice of K8s EnvFromSource (value type)
-	resources *common.ResourcesSpec, // Pointer to common ResourcesSpec
-	volumeMounts []corev1.VolumeMount, // FULL list of volume mounts for THIS container
-
-	// --- Probes & Security (Pointers to K8s types) ---
-	probes *common.ProbesConfig, // Pointer to common ProbesConfig (containing *corev1.Probe)
-	securityContext *corev1.SecurityContext, // Pointer to K8s SecurityContext
-
-) (corev1.Container, error) { // Return value type and error
-
-	// Basic validation on required inputs
-	if image.Repository == "" && image.Tag == "" {
-		return corev1.Container{}, fmt.Errorf("image repository and tag cannot both be empty for main container %s", containerName)
-	}
-	if containerName == "" {
-		return corev1.Container{}, fmt.Errorf("main container name cannot be empty")
-	}
-
-	// --- Build K8s structs from common inputs using helpers ---
-	imageName := BuildImageName(image.Repository, image.Tag)           // Use common helper, pass value type
-	imagePullPolicy := GetImagePullPolicy(image.PullPolicy, image.Tag) // Use common helper
-	resourcesSpec := BuildK8sResourceRequirements(resources)           // Use common helper, returns value struct
-
-	// *** FIX: Call helper to build K8s ports and assign to variable ***
-	k8sContainerPorts := BuildContainerPorts(ports) // Call the helper
-
-	// Handle probes (directly use K8s pointers from common.ProbesConfig if non-nil)
-	var livenessProbe, readinessProbe, startupProbe *corev1.Probe
-	if probes != nil {
-		// Use the BuildProbe helper which handles nil and potentially defaults/copies
-		livenessProbe = BuildProbe(probes.Liveness)
-		readinessProbe = BuildProbe(probes.Readiness)
-		startupProbe = BuildProbe(probes.Startup)
-	}
-
-	// Build the corev1.Container struct
-	container := corev1.Container{
-		Name:            containerName,
-		Image:           imageName,
-		ImagePullPolicy: imagePullPolicy,
-
-		Command:    command,    // Assign provided slice (can be nil)
-		Args:       args,       // Assign provided slice (can be nil)
-		WorkingDir: workingDir, // Assign provided string (can be empty)
-
-		Ports: k8sContainerPorts, // *** FIX: Use the built K8s ports list ***
-
-		Env:     env,     // Use K8s EnvVar slice directly
-		EnvFrom: envFrom, // Use K8s EnvFromSource slice directly
-
-		Resources: resourcesSpec, // Use K8s Resources value struct
-
-		VolumeMounts: volumeMounts, // Assign the pre-built list of ALL mounts for this container
-
-		LivenessProbe:  livenessProbe,  // Pointer to K8s Probe
-		ReadinessProbe: readinessProbe, // Pointer
-		StartupProbe:   startupProbe,   // Pointer
-
-		SecurityContext: securityContext, // Pointer passed in
-	}
-
-	return container, nil // Return the built container spec (value type)
 }
 
 // BuildEnsureDirectoryContainer builds a standard init container spec to ensure a directory exists with correct permissions.
