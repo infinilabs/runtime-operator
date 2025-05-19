@@ -20,12 +20,6 @@ import (
 	"github.com/infinilabs/operator/pkg/apis/common"
 )
 
-// --- Ptr Helpers ---
-// Functions to get pointers to primitive values.
-func Int32Ptr(val int32) *int32    { return &val }
-func BoolPtr(val bool) *bool       { return &val }
-func StringPtr(val string) *string { return &val }
-
 // --- Get pointer values, return default if pointer is nil ---
 // Safely dereference pointers, providing a default value if the pointer is nil.
 
