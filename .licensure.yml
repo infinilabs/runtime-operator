@@ -6,6 +6,10 @@ excludes:
   - NOTICE
   - .gitmodules
   - Makefile
+  - Dockerfile
+  - go.mod
+  - PROJECT
+  - .\.*.yml
   - justfile
   - \.gitignore
   - .*lock
