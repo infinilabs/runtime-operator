@@ -8,7 +8,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	policyv1 "k8s.io/api/policy/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
-	"k8s.io/apimachinery/pkg/runtime" // Needed for RawExtension in app-specific types if used
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
@@ -61,7 +60,7 @@ type ProbesConfig struct {
 }
 
 // ServiceSpecPart is a helper struct grouping common Service configuration fields.
-// Used within specific component configs like GatewayConfig.
+// Used within specific component configs like ResourceConfig.
 type ServiceSpecPart struct {
 	// Type specifies the Kubernetes Service type (ClusterIP, NodePort, LoadBalancer).
 	// Defaults to ClusterIP if not specified.
@@ -76,20 +75,6 @@ type ServiceSpecPart struct {
 	// Annotations specific to the Service resource.
 	// +optional
 	Annotations map[string]string `json:"annotations,omitempty"`
-
-	// HeadlessServiceName explicitly sets the name for the Headless Service (if different from default convention).
-	// Only relevant for StatefulSet workloads.
-	// +optional
-	// HeadlessServiceName *string `json:"headlessServiceName,omitempty"` // Example if needed
-
-	// Add other common Service Spec fields if needed for configuration:
-	// +optional
-	// ClusterIP *string `json:"clusterIP,omitempty"`
-	// +optional
-	// SessionAffinity *corev1.ServiceAffinity `json:"sessionAffinity,omitempty"`
-	// +optional
-	// LoadBalancerIP *string `json:"loadBalancerIP,omitempty"`
-	// etc.
 }
 
 // PersistenceSpec defines configuration for a shared PersistentVolumeClaim (for Deployment).
@@ -165,7 +150,7 @@ type EnvFromSourceSpec = corev1.EnvFromSource
 // ServiceAccountSpec defines Service Account creation and usage.
 type ServiceAccountSpec struct {
 	// +optional
-	Create *bool `json:"create,omitempty"` // Default: true
+	Create *bool `json:"create,omitempty"` // Default: false
 	// +optional
 	Name string `json:"name,omitempty"`
 	// +optional
@@ -205,10 +190,10 @@ type AppConfigData map[string]string
 // --- Application Specific Configuration Structures ---
 // Define the STRUCTURE of the config provided in ApplicationComponent.Properties for each type.
 
-// GatewayConfig defines the expected structure within ApplicationComponent.Properties when Type is "gateway".
-// GatewayConfig defines the expected structure within ApplicationComponent.Properties when Type is "gateway".
+// ResourceConfig defines the expected structure within ApplicationComponent.Properties when Type is "gateway".
+// ResourceConfig defines the expected structure within ApplicationComponent.Properties when Type is "gateway".
 // It includes core workload settings and potentially overrides for common components.
-type GatewayConfig struct {
+type ResourceConfig struct {
 	// --- Core Workload Settings ---
 
 	// Replicas defines the number of desired pods.
@@ -220,7 +205,9 @@ type GatewayConfig struct {
 	// Image specifies the container image details.
 	// +kubebuilder:validation:Required
 	// +optional
-	Image *ImageSpec `json:"image,omitempty"` // Pointer as it's checked for nil
+	Image   *ImageSpec `json:"image,omitempty"` // Pointer as it's checked for nil
+	Command []string   `json:"command,omitempty" protobuf:"bytes,3,rep,name=command"`
+	Args    []string   `json:"args,omitempty" protobuf:"bytes,4,rep,name=args"`
 
 	// Ports defines the network ports exposed by the gateway container.
 	// +kubebuilder:validation:Required
@@ -228,6 +215,7 @@ type GatewayConfig struct {
 	// +optional
 	Ports []PortSpec `json:"ports,omitempty"` // Slice, builder checks for emptiness
 
+	InitContainer *corev1.Container
 	// --- Optional Standard Overrides ---
 
 	// Resources specifies CPU and memory resource requests and limits for the main container.
@@ -384,14 +372,6 @@ type ElasticsearchNodePoolSpec struct {
 	Roles     []string      `json:"roles"`
 	Resources ResourcesSpec `json:"resources"`
 	Storage   StorageSpec   `json:"storage"`
-}
-
-// AddScheme adds the types in this package to the given scheme.
-func AddScheme(scheme *runtime.Scheme) error {
-	// Register application-specific config types if they need to be handled by Scheme directly (e.g., for conversion).
-	// Generally not needed if unmarshalling directly from RawExtension via json.Unmarshal.
-	// err := scheme.AddKnownTypes(SchemeGroupVersion, &OpensearchClusterConfig{})
-	return nil
 }
 
 // init function registers schemes or helpers if needed (usually empty here).

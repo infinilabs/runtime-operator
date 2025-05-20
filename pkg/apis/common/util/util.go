@@ -20,12 +20,6 @@ import (
 	"github.com/infinilabs/operator/pkg/apis/common"
 )
 
-// --- Ptr Helpers ---
-// Functions to get pointers to primitive values.
-func Int32Ptr(val int32) *int32    { return &val }
-func BoolPtr(val bool) *bool       { return &val }
-func StringPtr(val string) *string { return &val }
-
 // --- Get pointer values, return default if pointer is nil ---
 // Safely dereference pointers, providing a default value if the pointer is nil.
 
@@ -65,21 +59,7 @@ func UnmarshalAppSpecificConfig(appCompType string, rawProperties runtime.RawExt
 	}
 
 	var specificConfig interface{} // Target Go struct pointer
-
-	// --- Type Mapping based on component type string ---
-	// Add cases for ALL supported application types.
-	switch appCompType {
-	case "opensearch":
-		specificConfig = &common.OpensearchClusterConfig{} // Must be defined in common.types
-	case "elasticsearch":
-		specificConfig = &common.ElasticsearchClusterConfig{} // Must be defined in common.types
-	case "gateway":
-		specificConfig = &common.GatewayConfig{} // Must be defined in common.types
-	// case "console": specificConfig = &common.ConsoleConfig{} // Add ConsoleConfig etc.
-
-	default: // Unsupported component type
-		return nil, fmt.Errorf("unsupported component type '%s' for configuration unmarshalling", appCompType)
-	}
+	specificConfig = &common.ResourceConfig{}
 
 	// --- Perform Unmarshalling ---
 	// Use json.Unmarshal as RawExtension contains JSON/YAML bytes.
@@ -91,56 +71,3 @@ func UnmarshalAppSpecificConfig(appCompType string, rawProperties runtime.RawExt
 
 	return specificConfig, nil // Return the pointer to the unmarshalled specific struct
 }
-
-// --- Merge Logic (Removed - No longer needed in this util package) ---
-
-// --- Other Potential Utils ---
-
-// MergeStringMaps merges two maps[string]string. Override keys take precedence.
-func MergeStringMaps(base map[string]string, override map[string]string) map[string]string {
-	if base == nil && override == nil {
-		return nil
-	}
-	// Return deep copies to avoid modifying originals if they might be reused.
-	if override == nil {
-		newMap := make(map[string]string, len(base))
-		for k, v := range base {
-			newMap[k] = v
-		}
-		return newMap
-	}
-	if base == nil {
-		newMap := make(map[string]string, len(override))
-		for k, v := range override {
-			newMap[k] = v
-		}
-		return newMap
-	}
-
-	// Create a new map starting with base
-	merged := make(map[string]string, len(base))
-	for k, v := range base {
-		merged[k] = v
-	}
-	// Add/override with keys from override
-	for k, v := range override {
-		merged[k] = v
-	}
-	return merged
-}
-
-// ContainsString checks if a string exists in a slice.
-func ContainsString(slice []string, s string) bool {
-	for _, item := range slice {
-		if item == s {
-			return true
-		}
-	}
-	return false
-}
-
-// AddScheme - Not typically needed in common util package.
-// func AddScheme(scheme *runtime.Scheme) error { return nil }
-
-// init - Not typically needed in common util package.
-// func init() {}

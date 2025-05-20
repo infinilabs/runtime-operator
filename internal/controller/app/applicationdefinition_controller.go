@@ -31,7 +31,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -39,7 +38,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	appv1 "github.com/infinilabs/operator/api/app/v1"
-	coreinfrav1 "github.com/infinilabs/operator/api/v1"
 	"github.com/infinilabs/operator/internal/controller/common/kubeutil"
 	"github.com/infinilabs/operator/pkg/apis/common" // Needed for OperatorName constant
 	commonutil "github.com/infinilabs/operator/pkg/apis/common/util"
@@ -224,19 +222,13 @@ func (r *ApplicationDefinitionReconciler) Reconcile(ctx context.Context, req ctr
 
 	// No requeue needed and no error occurred (or errors were handled and don't require immediate retry)
 	return ctrl.Result{}, state.firstError // Return firstError (might be nil)
+	// return ctrl.Result{Requeue: true, RequeueAfter: 30 * time.Second}, state.firstError // Return firstError (might be nil)
 }
 
 // --- Helper Methods ---
 
 // initializeComponentStatuses populates the initial status map.
 func (r *ApplicationDefinitionReconciler) initializeComponentStatuses(state *reconcileState) error {
-	// existingStatuses := make(map[string]appv1.ComponentStatusReference)
-	// if state.originalStatus != nil {
-	// 	for _, s := range state.originalStatus.Components {
-	// 		existingStatuses[s.Name] = s
-	// 	}
-	// }
-
 	names := make(map[string]bool)
 	for _, comp := range state.appDef.Spec.Components {
 		if comp.Name == "" {
@@ -247,17 +239,11 @@ func (r *ApplicationDefinitionReconciler) initializeComponentStatuses(state *rec
 		}
 		names[comp.Name] = true
 
-		// // Preserve existing status if component still exists, otherwise initialize
-		// if existingStatus, ok := existingStatuses[comp.Name]; ok {
-		// 	// Maybe reset message if phase changes? For now, preserve fully.
-		// 	state.componentStatuses[comp.Name] = existingStatus.DeepCopy()
-		// } else {
 		state.componentStatuses[comp.Name] = &appv1.ComponentStatusReference{
 			Name:    comp.Name,
 			Health:  false, // Default to unhealthy
 			Message: "Initializing",
 		}
-		// }
 	}
 	// TODO: Optionally remove statuses for components that are no longer in the spec?
 	// This might be better handled by K8s GC based on owner refs.
@@ -334,7 +320,17 @@ func (r *ApplicationDefinitionReconciler) setInitialPhase(ctx context.Context, s
 	currentPhase := state.appDef.Status.Phase
 	if currentPhase == "" || currentPhase == appv1.ApplicationPhasePending {
 		state.appDef.Status.Phase = appv1.ApplicationPhaseProcessing
-		setCondition(state.appDef, metav1.Condition{Type: string(appv1.ConditionReady), Status: metav1.ConditionFalse, Reason: "Processing", Message: "Starting component processing"})
+		setCondition(state.appDef, metav1.Condition{
+			Type:    string(appv1.ConditionReady),
+			Status:  metav1.ConditionFalse,
+			Reason:  "Processing",
+			Message: "Starting component processing"})
+
+		// 需要持久化更新到cr中，否则status一直不会更新，不会触发后续的apply
+		err := r.Status().Update(ctx, state.appDef)
+		if err != nil {
+			return false, err
+		}
 		r.Recorder.Event(state.appDef, corev1.EventTypeNormal, "Processing", "Starting component processing")
 		// Status will be updated later if needed, just return true to signal requeue
 		return true, nil // Signal that phase changed and might need status update + requeue
@@ -350,28 +346,12 @@ func (r *ApplicationDefinitionReconciler) processComponentsAndBuildObjects(ctx c
 
 	for i := range appDef.Spec.Components {
 		appComp := appDef.Spec.Components[i] // Use index to get mutable reference if needed, but copy is safer
+		appComp.Type = "operator"
+
 		compLogger := logger.WithValues("component", appComp.Name, "componentType", appComp.Type)
 		compStatus := state.componentStatuses[appComp.Name] // Get status entry
 
 		compStatus.Message = "Processing" // Update status message
-
-		// 1. Get ComponentDefinition
-		compDef, err := r.getComponentDefinition(ctx, appComp.Type, appDef.Namespace)
-		if err != nil {
-			errMsg := fmt.Sprintf("Failed to get ComponentDefinition '%s': %v", appComp.Type, err)
-			compLogger.Error(err, errMsg)
-			r.updateComponentStatusWithError(compStatus, "CompDefNotFound", errMsg)
-			return fmt.Errorf(errMsg) // Return wrapped error
-		}
-		// [Added] Check if CompDef Spec is valid
-		if compDef.Spec == (coreinfrav1.ComponentDefinitionSpec{}) {
-			errMsg := fmt.Sprintf("ComponentDefinition '%s' has an empty or invalid spec", appComp.Type)
-			compLogger.Error(nil, errMsg) // Use nil error as we constructed the message
-			r.updateComponentStatusWithError(compStatus, "InvalidCompDefSpec", errMsg)
-			return fmt.Errorf(errMsg)
-		}
-		compStatus.Kind = compDef.Spec.Workload.Kind // Update status with Kind/APIVersion from CompDef
-		compStatus.APIVersion = compDef.Spec.Workload.APIVersion
 
 		// 2. Unmarshal specific configuration
 		appSpecificConfig, err := commonutil.UnmarshalAppSpecificConfig(appComp.Type, appComp.Properties)
@@ -719,19 +699,6 @@ func (r *ApplicationDefinitionReconciler) handleReconcileError(ctx context.Conte
 	return ctrl.Result{}, state.firstError
 }
 
-// getComponentDefinition fetches the ComponentDefinition CR.
-func (r *ApplicationDefinitionReconciler) getComponentDefinition(ctx context.Context, compType, namespace string) (*coreinfrav1.ComponentDefinition, error) {
-	compDef := &coreinfrav1.ComponentDefinition{}
-	// ComponentDefinitions are typically Cluster-scoped or in a central namespace.
-	// Assuming Namespace scope for now based on RBAC and usage. Adjust if Cluster-scoped.
-	compDefKey := types.NamespacedName{Name: compType, Namespace: namespace}
-	if err := r.Get(ctx, compDefKey, compDef); err != nil {
-		// Wrap error for clarity
-		return nil, fmt.Errorf("failed to get ComponentDefinition '%s/%s': %w", namespace, compType, err)
-	}
-	return compDef, nil
-}
-
 // updateStatusIfNeeded compares current and original status and updates if necessary.
 func (r *ApplicationDefinitionReconciler) updateStatusIfNeeded(ctx context.Context, currentApp *appv1.ApplicationDefinition, originalStatus *appv1.ApplicationDefinitionStatus) (bool, error) {
 	logger := log.FromContext(ctx)
@@ -927,60 +894,5 @@ func (r *ApplicationDefinitionReconciler) SetupWithManager(mgr ctrl.Manager) err
 		builder = builder.Owns(t)
 	}
 
-	// // Optionally watch ComponentDefinitions if changes should trigger AppDef reconcile
-	// builder = builder.Watches(
-	// 	&coreinfrav1.ComponentDefinition{},
-	// 	handler.EnqueueRequestsFromMapFunc(r.findAppDefsForCompDef),
-	// 	builder.WithPredicates(predicate.GenerationChangedPredicate{}), // Trigger only on spec changes
-	// )
-
 	return builder.Complete(r)
-}
-
-/*
-// findAppDefsForCompDef is a MapFunc to find ApplicationDefinitions using a ComponentDefinition.
-// Optional: Use only if watching ComponentDefinitions.
-func (r *ApplicationDefinitionReconciler) findAppDefsForCompDef(ctx context.Context, compDef client.Object) []reconcile.Request {
-	compDefName := compDef.GetName()
-	// Assuming ComponentDefinitions are namespaced同AppDef for simplicity here. Adjust if cluster-scoped.
-	compDefNamespace := compDef.GetNamespace()
-	logger := log.FromContext(ctx).WithValues("componentdefinition", compDef.GetName())
-	logger.V(1).Info("ComponentDefinition changed, finding associated ApplicationDefinitions")
-
-	appList := &appv1.ApplicationDefinitionList{}
-	// List AppDefs in the same namespace that might use this CompDef type
-	// This list might be broad; refine if possible (e.g., using labels or indexes).
-	listOpts := &client.ListOptions{Namespace: compDefNamespace}
-	if err := r.List(ctx, appList, listOpts); err != nil {
-		logger.Error(err, "Failed to list ApplicationDefinitions for ComponentDefinition watcher")
-		return []reconcile.Request{}
-	}
-
-	requests := make([]reconcile.Request, 0, len(appList.Items))
-	for _, appDef := range appList.Items {
-		for _, comp := range appDef.Spec.Components {
-			if comp.Type == compDefName {
-				req := reconcile.Request{
-					NamespacedName: types.NamespacedName{
-						Name:      appDef.Name,
-						Namespace: appDef.Namespace,
-					},
-				}
-				requests = append(requests, req)
-				logger.V(1).Info("Found matching ApplicationDefinition", "appdefinition", req.NamespacedName)
-				break // Found one component using it, add request for this AppDef
-			}
-		}
-	}
-	logger.V(1).Info("Finished finding ApplicationDefinitions", "count", len(requests))
-	return requests
-}
-*/
-
-// Helper function for min, remove if Go version >= 1.21 which has built-in min
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }

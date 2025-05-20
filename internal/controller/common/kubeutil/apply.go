@@ -4,12 +4,8 @@ package kubeutil
 
 import (
 	"context"
-	"fmt" // Needed for formatting error messages if wrapping
+	"fmt"
 
-	// Needed for GVK string manipulation
-	// Needed for IsConflict etc.
-
-	// Needed for GVK
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil" // For OperationResult
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -37,7 +33,8 @@ func ApplyObject(ctx context.Context, k8sClient client.Client, obj client.Object
 	gvk := obj.GetObjectKind().GroupVersionKind()
 	objKey := client.ObjectKeyFromObject(obj)
 
-	if gvk.Kind == "" || gvk.Version == "" || gvk.Group == "" || objKey.Name == "" || objKey.Namespace == "" {
+	// 内置资源没有 Group
+	if gvk.Kind == "" || gvk.Version == "" || objKey.Name == "" || objKey.Namespace == "" {
 		// Log a critical error if basic info is missing for apply.
 		err := fmt.Errorf("object is missing essential GVK or Name/Namespace for apply (GVK: %s, NsName: %s)", gvk.String(), objKey.String())
 		log.FromContext(ctx).Error(err, "Cannot apply object without complete metadata")

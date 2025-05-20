@@ -15,15 +15,6 @@ import (
 	// For GetBoolValueOrDefault
 )
 
-// Constants for standard labels managed by this operator
-const (
-	ManagedByLabel    = "app.kubernetes.io/managed-by"
-	OperatorName      = "infini-operator" // Use a consistent operator name for the label value
-	AppNameLabel      = "app.infini.cloud/application-name"
-	CompNameLabel     = "app.infini.cloud/component-name"     // Component Type (from CompDef Name)
-	CompInstanceLabel = "app.infini.cloud/component-instance" // Component Instance Name (from AppComp Name)
-)
-
 // --- Naming and Labeling Helpers ---
 
 // BuildCommonLabels creates a map of standard labels for Kubernetes resources.
@@ -242,7 +233,7 @@ func BuildProbe(probeSpec *corev1.Probe) *corev1.Probe {
 // If Create is true (or default) and Name is set, returns the configured name.
 // If Create is true (or default) and Name is not set, returns a derived default name.
 func DeriveServiceAccountName(instanceName string, config *common.ServiceAccountSpec) string {
-	createSA := true // Default to creating the SA unless explicitly disabled
+	createSA := false // Default to creating the SA unless explicitly disabled
 	if config != nil && config.Create != nil {
 		createSA = *config.Create
 	}
@@ -258,27 +249,6 @@ func DeriveServiceAccountName(instanceName string, config *common.ServiceAccount
 
 	// Derive default name if creating and no override provided
 	return DeriveResourceName(instanceName) + "-sa" // Use helper for base name + suffix
-}
-
-// ++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-// ++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-// ++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
-// --- Helpers for Strategies (defaults) ---
-
-// GetDeploymentStrategyOrDefault returns the Deployment strategy or a default.
-func GetDeploymentStrategyOrDefault(strategy *appsv1.DeploymentStrategy) appsv1.DeploymentStrategy {
-	if strategy != nil {
-		return *strategy.DeepCopy()
-	}
-	rollingUpdateDefault := &intstr.IntOrString{Type: intstr.String, StrVal: "25%"}
-	return appsv1.DeploymentStrategy{
-		Type: appsv1.RollingUpdateDeploymentStrategyType,
-		RollingUpdate: &appsv1.RollingUpdateDeployment{
-			MaxUnavailable: rollingUpdateDefault,
-			MaxSurge:       rollingUpdateDefault,
-		},
-	}
 }
 
 // GetStatefulSetUpdateStrategyOrDefault returns the StatefulSet update strategy or a default.
@@ -306,18 +276,6 @@ func GetAffinityOrDefault(affinity *corev1.Affinity) *corev1.Affinity {
 		return nil
 	}
 	return affinity.DeepCopy()
-}
-
-// GetTolerationsOrDefault returns the Tolerations slice or an empty slice after deep copy.
-func GetTolerationsOrDefault(tolerations []corev1.Toleration) []corev1.Toleration {
-	if tolerations == nil {
-		return []corev1.Toleration{}
-	}
-	copied := make([]corev1.Toleration, len(tolerations))
-	for i := range tolerations {
-		copied[i] = *tolerations[i].DeepCopy()
-	}
-	return copied
 }
 
 // GetPodSecurityContextOrDefault returns the Pod Security Context pointer or nil after deep copy.
@@ -355,21 +313,4 @@ func MergeMaps(base, override map[string]string) map[string]string {
 		}
 	}
 	return merged
-}
-
-// ShouldBuildClientService determines if a regular client service should be built based on config.
-// Moved from gateway builder as it's a generic decision based on common ServiceSpecPart.
-func ShouldBuildClientService(svcConfig *common.ServiceSpecPart) bool {
-	if svcConfig == nil {
-		return false
-	}
-	// If Type is explicitly set to ClusterIPNone, don't build.
-	// This requires ClusterIP field also to be None for true headless, but Type check is sufficient here.
-	if svcConfig.Type != nil && *svcConfig.Type == corev1.ServiceType(corev1.ClusterIPNone) {
-		return false
-	}
-	// Build if type is LoadBalancer, NodePort, or ClusterIP (including nil type which defaults to ClusterIP).
-	// Also consider if ports are defined (optional check, depends on requirements)
-	// if svcConfig.Ports == nil || len(svcConfig.Ports) == 0 { return false } // Uncomment if ports are mandatory for client service
-	return true
 }
