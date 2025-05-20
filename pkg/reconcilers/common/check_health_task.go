@@ -13,7 +13,7 @@ import (
 
 	// "sigs.k8s.io/controller-runtime/pkg/log" // Logger from context
 
-	"github.com/infinilabs/operator/internal/controller/common/kubeutil" // Kubeutil for health check
+	"github.com/infinilabs/runtime-operator/internal/controller/common/kubeutil" // Kubeutil for health check
 )
 
 // Ensure our task implementation complies with the Task interface

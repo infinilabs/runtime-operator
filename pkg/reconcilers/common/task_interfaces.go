@@ -6,11 +6,11 @@ import (
 	"fmt"
 
 	"github.com/go-logr/logr"
-	appv1 "github.com/infinilabs/operator/api/app/v1"                    // App types needed for context
-	"github.com/infinilabs/operator/internal/controller/common/kubeutil" // For ApplyResult type
-	"k8s.io/apimachinery/pkg/runtime"                                    // Scheme needed in context/task execution
-	"k8s.io/client-go/tools/record"                                      // Recorder needed in context
-	"sigs.k8s.io/controller-runtime/pkg/client"                          // K8s client needed
+	appv1 "github.com/infinilabs/runtime-operator/api/app/v1"                    // App types needed for context
+	"github.com/infinilabs/runtime-operator/internal/controller/common/kubeutil" // For ApplyResult type
+	"k8s.io/apimachinery/pkg/runtime"                                            // Scheme needed in context/task execution
+	"k8s.io/client-go/tools/record"                                              // Recorder needed in context
+	"sigs.k8s.io/controller-runtime/pkg/client"                                  // K8s client needed
 )
 
 // Task defines the contract for a single, potentially idempotent, step

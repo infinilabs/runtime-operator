@@ -4,9 +4,9 @@ package strategy
 import (
 	"context" // Needed for methods
 
-	appv1 "github.com/infinilabs/operator/api/app/v1" // For ApplicationDefinition, ApplicationComponent
-	"k8s.io/apimachinery/pkg/runtime"                 // For Scheme
-	"k8s.io/apimachinery/pkg/runtime/schema"          // For GVK
+	appv1 "github.com/infinilabs/runtime-operator/api/app/v1" // For ApplicationDefinition, ApplicationComponent
+	"k8s.io/apimachinery/pkg/runtime"                         // For Scheme
+	"k8s.io/apimachinery/pkg/runtime/schema"                  // For GVK
 
 	"sigs.k8s.io/controller-runtime/pkg/client" // Needed if strategy needs client
 )

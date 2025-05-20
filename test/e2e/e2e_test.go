@@ -27,7 +27,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/infinilabs/operator/test/utils"
+	"github.com/infinilabs/runtime-operator/test/utils"
 )
 
 // namespace where the project is deployed in

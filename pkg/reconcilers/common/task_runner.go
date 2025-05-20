@@ -10,8 +10,8 @@ import (
 
 	// For ApplyResult type
 
-	appv1 "github.com/infinilabs/operator/api/app/v1"
-	"github.com/infinilabs/operator/internal/controller/common/kubeutil"
+	appv1 "github.com/infinilabs/runtime-operator/api/app/v1"
+	"github.com/infinilabs/runtime-operator/internal/controller/common/kubeutil"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/client"

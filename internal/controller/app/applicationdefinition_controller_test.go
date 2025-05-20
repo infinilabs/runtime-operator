@@ -27,7 +27,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	appv1 "github.com/infinilabs/operator/api/app/v1"
+	appv1 "github.com/infinilabs/runtime-operator/api/app/v1"
 )
 
 var _ = Describe("ApplicationDefinition Controller", func() {
