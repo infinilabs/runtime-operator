@@ -4,8 +4,8 @@ package strategy
 import (
 	"context"
 
-	appv1 "github.com/infinilabs/operator/api/app/v1"                    // App types
-	"github.com/infinilabs/operator/internal/controller/common/kubeutil" // For ApplyResult type
+	appv1 "github.com/infinilabs/runtime-operator/api/app/v1"                    // App types
+	"github.com/infinilabs/runtime-operator/internal/controller/common/kubeutil" // For ApplyResult type
 
 	// Common Task Interface/Types
 	"k8s.io/apimachinery/pkg/runtime"

@@ -4,8 +4,8 @@ package k8s
 import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	// common "github.com/infinilabs/operator/pkg/apis/common" // Common types if needed for internal helpers
-	// commonutil "github.com/infinilabs/operator/pkg/apis/common/util" // Common utils if needed
+	// common "github.com/infinilabs/runtime-operator/pkg/apis/common" // Common types if needed for internal helpers
+	// commonutil "github.com/infinilabs/runtime-operator/pkg/apis/common/util" // Common utils if needed
 )
 
 // BuildService builds a standard corev1.Service resource (ClusterIP, NodePort, or LoadBalancer).

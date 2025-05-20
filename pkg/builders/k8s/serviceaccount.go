@@ -5,8 +5,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	// Need access to helpers if used
-	// "github.com/infinilabs/operator/pkg/apis/common" // Not directly needed here
-	// commonutil "github.com/infinilabs/operator/pkg/apis/common/util"
+	// "github.com/infinilabs/runtime-operator/pkg/apis/common" // Not directly needed here
+	// commonutil "github.com/infinilabs/runtime-operator/pkg/apis/common/util"
 )
 
 // BuildServiceAccount builds a corev1.ServiceAccount resource.

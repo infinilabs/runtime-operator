@@ -32,7 +32,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	appv1 "github.com/infinilabs/operator/api/app/v1"
+	appv1 "github.com/infinilabs/runtime-operator/api/app/v1"
 	// +kubebuilder:scaffold:imports
 )
 
