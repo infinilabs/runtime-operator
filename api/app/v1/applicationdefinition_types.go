@@ -22,7 +22,7 @@ package v1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime" // Required for RawExtension
+	"k8s.io/apimachinery/pkg/runtime"
 )
 
 // --- Constants for Phase and Conditions ---
@@ -69,8 +69,7 @@ type ApplicationComponent struct {
 	Name string `json:"name"`
 
 	// Type references the `metadata.name` of a `ComponentDefinition` resource in the same namespace.
-	// +kubebuilder:validation:Required
-	Type string `json:"type"`
+	Type string `json:"type,omitempty"`
 
 	// Properties provides the instance-specific configuration as raw JSON.
 	// The structure is determined by the component 'type' and validated by the corresponding builder strategy.
@@ -156,14 +155,14 @@ type ApplicationDefinitionStatus struct {
 
 // --- Root Object ---
 
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
-//+kubebuilder:resource:scope=Namespaced,path=applicationdefinitions,shortName=appdef,categories={infini,app}
-//+kubebuilder:printcolumn:name="Phase",type=string,JSONPath=".status.phase",description="The current reconciliation phase of the application."
-//+kubebuilder:printcolumn:name="Ready",type=string,JSONPath=".status.conditions[?(@.type=='Ready')].status",description="The overall readiness status of the application."
-//+kubebuilder:printcolumn:name="Components",type=string,JSONPath=".spec.components[*].name",description="Names of the components defined in the application."
-//+kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
-//+kubebuilder:storageversion
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
+// +kubebuilder:resource:scope=Namespaced,path=applicationdefinitions,shortName=appdef,categories={infini,app}
+// +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=".status.phase",description="The current reconciliation phase of the application."
+// +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=".status.conditions[?(@.type=='Ready')].status",description="The overall readiness status of the application."
+// +kubebuilder:printcolumn:name="Components",type=string,JSONPath=".spec.components[*].name",description="Names of the components defined in the application."
+// +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
+// +kubebuilder:storageversion
 
 // ApplicationDefinition is the Schema for the applicationdefinitions API, defining a composite application.
 type ApplicationDefinition struct {
@@ -181,12 +180,6 @@ type ApplicationDefinitionList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []ApplicationDefinition `json:"items"`
-}
-
-// AddScheme adds the ApplicationDefinition types to the given scheme.
-// Deprecated: Use SchemeBuilder.AddToScheme directly.
-func AddScheme(scheme *runtime.Scheme) error {
-	return SchemeBuilder.AddToScheme(scheme)
 }
 
 func init() {

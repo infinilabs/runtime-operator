@@ -24,16 +24,6 @@ type ApplyResourcesTask struct {
 	FieldManager string
 }
 
-// NewApplyResourcesTask creates a new instance of ApplyResourcesTask.
-func NewApplyResourcesTask(fieldManager string) *ApplyResourcesTask {
-	if fieldManager == "" {
-		panic("ApplyResourcesTask requires a non-empty fieldManager")
-	}
-	return &ApplyResourcesTask{
-		FieldManager: fieldManager,
-	}
-}
-
 // GetName returns the unique name for this task type.
 func (t *ApplyResourcesTask) GetName() string {
 	return "ApplyResourcesTask"

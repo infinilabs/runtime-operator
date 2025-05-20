@@ -129,30 +129,6 @@ func BuildVolumeMountsFromSecrets(secretMounts []common.SecretMountSpec) []corev
 	return volumeMounts
 }
 
-// BuildVolumesFromAdditionalVolumes implementation... (Keep as before)
-func BuildVolumesFromAdditionalVolumes(additionalVolumes []corev1.Volume) []corev1.Volume {
-	if additionalVolumes == nil || len(additionalVolumes) == 0 {
-		return []corev1.Volume{}
-	}
-	builtVolumes := make([]corev1.Volume, 0, len(additionalVolumes))
-	for i := range additionalVolumes {
-		builtVolumes = append(builtVolumes, *additionalVolumes[i].DeepCopy())
-	}
-	return builtVolumes
-}
-
-// BuildVolumeMountsFromAdditionalVolumes implementation... (Keep as before)
-func BuildVolumeMountsFromAdditionalVolumes(additionalVolumeMounts []corev1.VolumeMount) []corev1.VolumeMount {
-	if additionalVolumeMounts == nil || len(additionalVolumeMounts) == 0 {
-		return []corev1.VolumeMount{}
-	}
-	builtMounts := make([]corev1.VolumeMount, 0, len(additionalVolumeMounts))
-	for i := range additionalVolumeMounts {
-		builtMounts = append(builtMounts, *additionalVolumeMounts[i].DeepCopy())
-	}
-	return builtMounts
-}
-
 // BuildVolumeClaimTemplates builds PersistentVolumeClaim templates for StatefulSet.
 func BuildVolumeClaimTemplates(storageSpec *common.StorageSpec, commonLabels map[string]string) ([]corev1.PersistentVolumeClaim, error) { // Uses common.StorageSpec
 	if storageSpec == nil || !storageSpec.Enabled {

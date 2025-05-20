@@ -1,27 +1,35 @@
 apiVersion: app.infini.cloud/v1
 kind: ApplicationDefinition
 metadata:
-  name: my-infini-gateway # 应用实例名称
+  name: my-infini-console # 应用实例名称
   namespace: devops # 替换为你的命名空间
 spec:
   components:
-    - name: infini-gw-main # 组件实例名称 (会影响资源名称)
-      type: gateway # 引用上面的 ComponentDefinition
+    - name: infini-console # 组件实例名称 (会影响资源名称)
+      # type: console # 引用上面的 ComponentDefinition
       properties:
         # --- 核心配置 ---
         replicas: 1 # 副本数 (例如: 1 或 3)
         image:
-          repository: docker.1ms.run/infinilabs/gateway # 目标镜像
-          tag: 1.29.3-2018
+          repository: docker.1ms.run/infinilabs/console # 目标镜像
+          tag: 1.29.4-2108
         ports:
-          - name: http-2900 # 主要应用端口
-            containerPort: 2900
-            protocol: TCP
-          - name: http-8000 # 主要应用端口
-            containerPort: 8000
+          - name: http-9000 # 主要应用端口
+            containerPort: 9000
             protocol: TCP
           # - name: metrics # 如果有其他端口
           #   containerPort: 9090
+#        initContainer:
+#            name: init-console
+#            image: "docker.1ms.run/infinilabs/console:1.29.4-2108"
+#            imagePullPolicy: IfNotPresent
+#            command: ['sh', '-c', 'if [ ! -e /config_bak/certs ]; then cp -rf /config/* /config_bak; else exit 0; fi']
+#            volumeMounts:
+#                - name: console-config
+#                mountPath: /config_bak
+#                - name: console-config-security
+#                mountPath: /config/security.yml
+#                subPath: security.yml
         storage: # StatefulSet 通常需要存储. 目前删除 Pod 不会删除 PVC，todo
           enabled: true
           size: 2Gi # <-- 按需调整存储大小
@@ -30,6 +38,10 @@ spec:
           accessModes:
             - ReadWriteOnce
           storageClassName: local-path # <--- !!! 替换为你集群中有效的 StorageClass !!!
+
+          # 是不是缺少了 initContainer 的配置 todo
+
+
 #        serviceAccount:  # ServiceAccount 名称
 #            create: false # 是否创建 ServiceAccount, 默认值为 false
 #            name: controller-manager # <-- !!! 确认 ServiceAccount 名称 !!!
@@ -37,12 +49,10 @@ spec:
         service: # 服务暴露配置
           type: NodePort # 使用 NodePort 便于测试，或 LoadBalancer
           ports:
-            - name: http # Service 端口名称
-              containerPort: 2900 # Service 监听的端口
+            - name: http-9000 # Service 端口名称
+              containerPort: 9000 # Service 监听的端口
                # targetPort: 8080 # 转发的目标 Pod 端口 (默认等于 containerPort)
                # nodePort: 30080 # 可选：指定 NodePort 端口
-            - name: http # Service 端口名称
-              containerPort: 8000 # Service 监听的端口
         resources:
           requests:
             cpu: "0.5" # 500m
@@ -50,23 +60,23 @@ spec:
           limits:
             cpu: "1" # 1 Core
             memory: "1Gi"
-        probes: # <-- 强烈建议根据实际情况配置健康检查
-          liveness:
-            httpGet:
-              path: /_info # <-- !!! 确认健康检查路径 !!!
-              port: 2900        # <-- !!! 确认健康检查端口 !!!
-            initialDelaySeconds: 15 # 给予较长启动时间
-            periodSeconds: 10
-            timeoutSeconds: 5
-            failureThreshold: 5
-          readiness:
-            httpGet:
-              path: /_info # <-- !!! 确认就绪检查路径 !!!
-              port: 2900       # <-- !!! 确认就绪检查端口 !!!
-            initialDelaySeconds: 5
-            periodSeconds: 10
-            timeoutSeconds: 3
-            failureThreshold: 5
+#        probes: # <-- 强烈建议根据实际情况配置健康检查
+#          liveness:
+#            httpGet:
+#              path: /_info # <-- !!! 确认健康检查路径 !!!
+#              port: 9000        # <-- !!! 确认健康检查端口 !!!
+#            initialDelaySeconds: 15 # 给予较长启动时间
+#            periodSeconds: 10
+#            timeoutSeconds: 5
+#            failureThreshold: 5
+#          readiness:
+#            httpGet:
+#              path: /_info # <-- !!! 确认就绪检查路径 !!!
+#              port: 9000       # <-- !!! 确认就绪检查端口 !!!
+#            initialDelaySeconds: 5
+#            periodSeconds: 10
+#            timeoutSeconds: 3
+#            failureThreshold: 5
         env:
           - name: GATEWAY_HEAP_SIZE # 示例环境变量
             value: "512m"
@@ -74,11 +84,11 @@ spec:
             value: "info"
         configMounts: # 需要配合 configFiles 告诉 Builder 如何挂载
           - name: infini-gw-main-config # 指向上面生成的 ConfigMap
-            mountPath: /gateway.yml # 挂载配置文件的目录
-            subPath: gateway.yml # 挂载单个文件
+            mountPath: /app.yml # 挂载配置文件的目录
+            subPath: app.yml # 挂载单个文件
             readOnly: true
         configFiles: # 配置文件内容. configmap 有更新会自动重启gw
-          "gateway.yml": |
+          "app.yml": |
             env:
               NODE_ID:
               NODE_ENDPOINT:

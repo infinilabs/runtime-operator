@@ -4,12 +4,8 @@ package kubeutil
 
 import (
 	"context"
-	"fmt" // Needed for formatting error messages if wrapping
+	"fmt"
 
-	// Needed for GVK string manipulation
-	// Needed for IsConflict etc.
-
-	// Needed for GVK
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil" // For OperationResult
 	"sigs.k8s.io/controller-runtime/pkg/log"
