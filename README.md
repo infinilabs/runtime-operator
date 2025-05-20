@@ -1,20 +1,22 @@
-# infini-operator
-The Kubernetes infini-operator is used for automating the deployment, provisioning, management, and orchestration of the InfiniLabs' products (e.g. gateway and console).
+# INFINI Runtime Operator
+
+INFINI Runtime Operator is a Kubernetes operator designed to automate the deployment, provisioning, management, and orchestration of projects built on the INFINI Framework such as INFINI Gateway and INFINI Console. 
+It streamlines the lifecycle management of INFINI-based components in cloud-native environments, ensuring consistent, scalable, and resilient operations across Kubernetes clusters.
 
 
 ## Getting Started
 
 ### Prerequisites
-- go version v1.23.0+
-- docker version 17.03+.
-- kubectl version v1.11.3+.
+- Go version v1.23.0+
+- Docker version 17.03+.
+- Kubectl version v1.11.3+.
 - Access to a Kubernetes v1.11.3+ cluster.
 
 ### To Deploy the operator on the cluster
 **Build and push your image to the location specified by `IMG`:**
 
 ```sh
-make docker-build docker-push IMG=<some-registry>/infini-operator:tag
+make docker-build docker-push IMG=infinilabs/runtime-operator:tag
 ```
 
 **NOTE:** This image ought to be published in the personal registry you specified.
@@ -30,7 +32,7 @@ make install
 **Deploy the Manager to the cluster with the image specified by `IMG`:**
 
 ```sh
-make deploy IMG=<some-registry>/infini-operator:tag
+make deploy IMG=infinilabs/runtime-operator:tag
 ```
 
 > **NOTE**: If you encounter RBAC errors, you may need to grant yourself cluster-admin
@@ -358,7 +360,7 @@ Following the options to release and provide this solution to the users.
 1. Build the installer for the image built and published in the registry:
 
 ```sh
-make build-installer IMG=<some-registry>/infini-operator:tag
+make build-installer IMG=infinilabs/runtime-operator:tag
 ```
 
 **NOTE:** The makefile target mentioned above generates an 'install.yaml'
@@ -372,7 +374,7 @@ Users can just run 'kubectl apply -f <URL for YAML BUNDLE>' to install
 the project, i.e.:
 
 ```sh
-kubectl apply -f https://raw.githubusercontent.com/<org>/infini-operator/<tag or branch>/dist/install.yaml
+kubectl apply -f https://raw.githubusercontent.com/<org>/runtime-operator/<tag or branch>/dist/install.yaml
 ```
 
 ### By providing a Helm Chart
@@ -395,22 +397,12 @@ is manually re-applied afterwards.
 
 ## Community
 
-Feel free to join the Discord server to discuss anything related to this project:
+Fell free to join the Discord server to discuss anything around this project:
 
-👉 [Join the INFINI Community on Discord](https://discord.gg/4tKTMkkvVX)
+[https://discord.gg/4tKTMkkvVX](https://discord.gg/4tKTMkkvVX)
 
 ## License
 
-Copyright 2025 infinilabs.com.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
+INFINI Runtime Operator is a truly open-source project, licensed under the [GNU Affero General Public License v3.0](https://opensource.org/licenses/AGPL-3.0).
+We also offer a commercially supported, enterprise-ready version of the software.
+For more details, please refer to our [license information](./LICENSE).
