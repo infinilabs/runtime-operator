@@ -1,3 +1,26 @@
+// Copyright (C) INFINI Labs & INFINI LIMITED.
+//
+// The INFINI Runtime Operator is offered under the GNU Affero General Public License v3.0
+// and as commercial software.
+//
+// For commercial licensing, contact us at:
+//   - Website: infinilabs.com
+//   - Email: hello@infini.ltd
+//
+// Open Source licensed under AGPL V3:
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 // pkg/builders/gateway/builder.go
 // Contains the concrete builder strategy implementation for the Gateway component type.
 package gateway
@@ -16,15 +39,15 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	// Import App types and Common types
-	appv1 "github.com/infinilabs/operator/api/app/v1"                // App types
-	"github.com/infinilabs/operator/pkg/apis/common"                 // Common types
-	commonutil "github.com/infinilabs/operator/pkg/apis/common/util" // Common utils
+	appv1 "github.com/infinilabs/runtime-operator/api/app/v1"                // App types
+	"github.com/infinilabs/runtime-operator/pkg/apis/common"                 // Common types
+	commonutil "github.com/infinilabs/runtime-operator/pkg/apis/common/util" // Common utils
 
 	// Import other builders needed to construct nested/related objects
-	builders "github.com/infinilabs/operator/pkg/builders/k8s" // Import generic K8s builders
+	builders "github.com/infinilabs/runtime-operator/pkg/builders/k8s" // Import generic K8s builders
 
 	// Import strategy package for the interface definition and registry access
-	"github.com/infinilabs/operator/pkg/strategy"
+	"github.com/infinilabs/runtime-operator/pkg/strategy"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log" // Use controller-runtime logger
 )

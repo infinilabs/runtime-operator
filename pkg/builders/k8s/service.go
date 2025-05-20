@@ -1,11 +1,34 @@
+// Copyright (C) INFINI Labs & INFINI LIMITED.
+//
+// The INFINI Runtime Operator is offered under the GNU Affero General Public License v3.0
+// and as commercial software.
+//
+// For commercial licensing, contact us at:
+//   - Website: infinilabs.com
+//   - Email: hello@infini.ltd
+//
+// Open Source licensed under AGPL V3:
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 // pkg/builders/k8s/service.go
 package k8s
 
 import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	// common "github.com/infinilabs/operator/pkg/apis/common" // Common types if needed for internal helpers
-	// commonutil "github.com/infinilabs/operator/pkg/apis/common/util" // Common utils if needed
+	// common "github.com/infinilabs/runtime-operator/pkg/apis/common" // Common types if needed for internal helpers
+	// commonutil "github.com/infinilabs/runtime-operator/pkg/apis/common/util" // Common utils if needed
 )
 
 // BuildService builds a standard corev1.Service resource (ClusterIP, NodePort, or LoadBalancer).

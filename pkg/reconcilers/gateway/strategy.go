@@ -1,3 +1,26 @@
+// Copyright (C) INFINI Labs & INFINI LIMITED.
+//
+// The INFINI Runtime Operator is offered under the GNU Affero General Public License v3.0
+// and as commercial software.
+//
+// For commercial licensing, contact us at:
+//   - Website: infinilabs.com
+//   - Email: hello@infini.ltd
+//
+// Open Source licensed under AGPL V3:
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program. If not, see <http://www.gnu.org/licenses/>.
+
 // pkg/reconcilers/gateway/strategy.go
 package gateway
 
@@ -11,14 +34,14 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 
 	// Import specific builders if needed indirectly by helpers
-	k8s_builders "github.com/infinilabs/operator/pkg/builders/k8s" // <-- Import k8s_builders
+	k8s_builders "github.com/infinilabs/runtime-operator/pkg/builders/k8s" // <-- Import k8s_builders
 
 	// Import local types
-	appv1 "github.com/infinilabs/operator/api/app/v1"
-	"github.com/infinilabs/operator/internal/controller/common/kubeutil" // ApplyResult needed for Reconcile signature
-	"github.com/infinilabs/operator/pkg/apis/common"                     // Needed for ResourceConfig type assertion in CheckAppHealth
-	common_reconcilers "github.com/infinilabs/operator/pkg/reconcilers/common"
-	"github.com/infinilabs/operator/pkg/strategy"
+	appv1 "github.com/infinilabs/runtime-operator/api/app/v1"
+	"github.com/infinilabs/runtime-operator/internal/controller/common/kubeutil" // ApplyResult needed for Reconcile signature
+	"github.com/infinilabs/runtime-operator/pkg/apis/common"                     // Needed for ResourceConfig type assertion in CheckAppHealth
+	common_reconcilers "github.com/infinilabs/runtime-operator/pkg/reconcilers/common"
+	"github.com/infinilabs/runtime-operator/pkg/strategy"
 
 	// Controller-runtime imports
 	"k8s.io/client-go/tools/record"
