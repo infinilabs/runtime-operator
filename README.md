@@ -108,10 +108,16 @@ spec:
             timeoutSeconds: 3
             failureThreshold: 5
         env:
-          - name: GATEWAY_HEAP_SIZE
-            value: "512m"
-          - name: LOG_LEVEL
-            value: "info"
+          - name: loggingEsEndpoint
+            value: http://easysearch-0.easysearch:9200
+          - name: admin
+            value: YOUR_INIT_ADMIN_PASSWORD
+          - name: prodEsEndpoint
+            value: http://easysearch-0.easysearch:9200
+          - name: prodEsUser
+            value: admin
+          - name: prodEsPass
+            value: YOUR_INIT_ADMIN_PASSWORD
         configMounts: # ConfigMap mounts
           - name: infini-gw-config # ConfigMap name (generated as {{.name}}-config)
             mountPath: /gateway.yml 
@@ -219,6 +225,7 @@ Key configurations for users:
 - namespace: Specify the deployment namespace.
 - gateway.yml: Modify the configuration file content as needed.
 - tag: Adjust the Docker image version.
+- env: Set the environment variables according to your needs.
 
 #### console
 
@@ -289,8 +296,8 @@ spec:
             timeoutSeconds: 3
             failureThreshold: 5
         env:
-          - name: INFINI_CONSOLE_ENDPOINT
-            value: http://console:9000/
+          - name: endpoint
+            value: "http://console:9000/"
         configMounts: 
           - name: infini-console-config 
             mountPath: /config # Config directory
@@ -321,6 +328,7 @@ Key configurations for users:
 - namespace: Specify the deployment namespace.
 - security.yml: Modify the configuration file content as needed.
 - tag: Adjust the Docker image version.
+- env: Set the environment variables according to your needs.
 
 After preparing the YAML configuration files according to the instructions above, you can proceed with deployment by running the following command:
 ```sh
