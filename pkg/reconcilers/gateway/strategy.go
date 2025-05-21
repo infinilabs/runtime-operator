@@ -1,49 +1,21 @@
-// Copyright (C) INFINI Labs & INFINI LIMITED.
-//
-// The INFINI Runtime Operator is offered under the GNU Affero General Public License v3.0
-// and as commercial software.
-//
-// For commercial licensing, contact us at:
-//   - Website: infinilabs.com
-//   - Email: hello@infini.ltd
-//
-// Open Source licensed under AGPL V3:
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program. If not, see <http://www.gnu.org/licenses/>.
-
-// pkg/reconcilers/gateway/strategy.go
 package gateway
 
 import (
 	"context"
 	"fmt"
 
-	// Import K8s types needed for checks or task context
 	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors" // <-- Import apierrors
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	// Import specific builders if needed indirectly by helpers
-	k8s_builders "github.com/infinilabs/operator/pkg/builders/k8s" // <-- Import k8s_builders
+	k8s_builders "github.com/infinilabs/runtime-operator/pkg/builders/k8s"
 
-	// Import local types
-	appv1 "github.com/infinilabs/operator/api/app/v1"
-	"github.com/infinilabs/operator/internal/controller/common/kubeutil" // ApplyResult needed for Reconcile signature
-	"github.com/infinilabs/operator/pkg/apis/common"                     // Needed for ResourceConfig type assertion in CheckAppHealth
-	common_reconcilers "github.com/infinilabs/operator/pkg/reconcilers/common"
-	"github.com/infinilabs/operator/pkg/strategy"
+	appv1 "github.com/infinilabs/runtime-operator/api/app/v1"
+	"github.com/infinilabs/runtime-operator/internal/controller/common/kubeutil"
+	"github.com/infinilabs/runtime-operator/pkg/apis/common"
+	common_reconcilers "github.com/infinilabs/runtime-operator/pkg/reconcilers/common"
+	"github.com/infinilabs/runtime-operator/pkg/strategy"
 
-	// Controller-runtime imports
 	"k8s.io/client-go/tools/record"
 	client "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -68,11 +40,11 @@ func (s *GatewayReconcileStrategy) Reconcile(
 	k8sClient client.Client,
 	scheme *runtime.Scheme,
 	appDef *appv1.ApplicationDefinition,
-	appComp *appv1.ApplicationComponent, // <--- 这个参数在函数签名中已经有了
+	appComp *appv1.ApplicationComponent,             // <--- 这个参数在函数签名中已经有了
 	componentStatus *appv1.ComponentStatusReference, // <--- 这个参数在函数签名中已经有了
-	mergedConfig interface{}, // <--- 这个参数在函数签名中已经有了
-	desiredObjects []client.Object, // <--- 原始的 desiredObjects 列表
-	applyResults map[string]kubeutil.ApplyResult, // <--- 这个参数在函数签名中已经有了
+	mergedConfig interface{},                        // <--- 这个参数在函数签名中已经有了
+	desiredObjects []client.Object,                  // <--- 原始的 desiredObjects 列表
+	applyResults map[string]kubeutil.ApplyResult,    // <--- 这个参数在函数签名中已经有了
 	recorder record.EventRecorder,
 ) (bool, error) { // Returns needsRequeue, error
 	logger := log.FromContext(ctx).WithValues("component", componentStatus.Name, "reconcileStrategy", "Gateway")

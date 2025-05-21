@@ -1,50 +1,12 @@
-// Copyright (C) INFINI Labs & INFINI LIMITED.
-//
-// The INFINI Runtime Operator is offered under the GNU Affero General Public License v3.0
-// and as commercial software.
-//
-// For commercial licensing, contact us at:
-//   - Website: infinilabs.com
-//   - Email: hello@infini.ltd
-//
-// Open Source licensed under AGPL V3:
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program. If not, see <http://www.gnu.org/licenses/>.
-
-// pkg/apis/common/util/util.go
-// Package util provides common utility functions for the common API types and general K8s interactions.
 package util
 
 import (
-	// Keep if future helpers need context
-	"encoding/json" // Needed for UnmarshalAppSpecificConfig
+	"encoding/json"
 	"fmt"
 
-	// Keep if future helpers use reflection
-	// Keep for string helpers
-	// Keep if future helpers need time
-	// For standard types referenced by helpers if needed
-	// For Quantity if helpers handle it
-	"k8s.io/apimachinery/pkg/runtime" // For runtime.RawExtension and Scheme in Unmarshal helper
-	// Needed for runtime.Decode/Encode in Unmarshal helper
-	// Keep if future helpers need IntOrString
-	// Import common types ONLY IF helpers need to operate directly on them
-	// For UnmarshalAppSpecificConfig, we need the target struct types.
-	"github.com/infinilabs/operator/pkg/apis/common"
+	"github.com/infinilabs/runtime-operator/pkg/apis/common"
+	"k8s.io/apimachinery/pkg/runtime"
 )
-
-// --- Get pointer values, return default if pointer is nil ---
-// Safely dereference pointers, providing a default value if the pointer is nil.
 
 // GetInt32ValueOrDefault returns the value of an int32 pointer or a default value.
 func GetInt32ValueOrDefault(ptr *int32, defaultValue int32) int32 {

@@ -1,62 +1,27 @@
-// Copyright (C) INFINI Labs & INFINI LIMITED.
-//
-// The INFINI Runtime Operator is offered under the GNU Affero General Public License v3.0
-// and as commercial software.
-//
-// For commercial licensing, contact us at:
-//   - Website: infinilabs.com
-//   - Email: hello@infini.ltd
-//
-// Open Source licensed under AGPL V3:
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program. If not, see <http://www.gnu.org/licenses/>.
-
-// pkg/builders/k8s/pod.go
 package k8s
 
 import (
-	"fmt" // For potential error formatting
+	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	// Needed for Scheme if passed
-	// common "github.com/infinilabs/operator/pkg/apis/common" // Use specific K8s types as input where possible
 )
 
 // BuildPodTemplateSpec builds a corev1.PodTemplateSpec from assembled K8s spec parts and metadata.
 // This generic builder *assembles* the final PodTemplateSpec. It expects the caller (app-specific builder)
 // to provide fully constructed lists of containers, init containers, volumes, and resolved PodSpec fields.
 func BuildPodTemplateSpec(
-	// Input lists of core Pod/Container specs that are fully built externally.
-	containers []corev1.Container, // List of containers (main + potential sidecars)
-	initContainers []corev1.Container, // List of init containers
-	volumes []corev1.Volume, // List of volumes (ConfigMap, Secret, EmptyDir, HostPath, PVC for Deployment)
-
-	// Input common PodSpec fields (pre-processed from config)
+	containers []corev1.Container,
+	initContainers []corev1.Container,
+	volumes []corev1.Volume,
 	podSecurityContext *corev1.PodSecurityContext, // Pod Security Context (pointer)
-	serviceAccountName string, // Service Account name string
-	nodeSelector map[string]string, // Pod Node Selector (map value type)
-	tolerations []corev1.Toleration, // Pod Tolerations (slice value type)
-	affinity *corev1.Affinity, // Pod Affinity (pointer to K8s struct)
-	// Add other common PodSpec fields if needed
-	// hostAliases []corev1.HostAlias,
-	// dnsPolicy corev1.DNSPolicy,
-	// imagePullSecrets []corev1.LocalObjectReference,
-
-	// Input metadata fields
-	podLabels map[string]string, // Labels for the Pod template metadata (selector + common)
-	podAnnotations map[string]string, // Annotations for the Pod template metadata (optional)
+	serviceAccountName string,                     // Service Account name string
+	nodeSelector map[string]string,                // Pod Node Selector (map value type)
+	tolerations []corev1.Toleration,               // Pod Tolerations (slice value type)
+	affinity *corev1.Affinity,                     // Pod Affinity (pointer to K8s struct)
+	podLabels map[string]string,                   // Labels for the Pod template metadata (selector + common)
+	podAnnotations map[string]string,              // Annotations for the Pod template metadata (optional)
 
 ) (*corev1.PodTemplateSpec, error) { // Return pointer and error
 

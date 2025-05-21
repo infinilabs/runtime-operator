@@ -28,7 +28,7 @@
 package v1
 
 import (
-	"github.com/infinilabs/operator/pkg/apis/common"
+	"github.com/infinilabs/runtime-operator/pkg/apis/common"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 

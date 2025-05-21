@@ -33,9 +33,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
-	// Import common types as it's needed by the new helper function
-	"github.com/infinilabs/operator/pkg/apis/common"
-	// For GetBoolValueOrDefault
+	"github.com/infinilabs/runtime-operator/pkg/apis/common"
 )
 
 // --- Naming and Labeling Helpers ---

@@ -1,4 +1,4 @@
-module github.com/infinilabs/operator
+module github.com/infinilabs/runtime-operator
 
 go 1.23.0
 

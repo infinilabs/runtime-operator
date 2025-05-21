@@ -28,13 +28,9 @@ import (
 	"context"
 	"fmt"
 
-	// Needed for task name cleanup
+	"github.com/infinilabs/runtime-operator/internal/controller/common/kubeutil"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-
-	// "sigs.k8s.io/controller-runtime/pkg/log" // Logger comes from context
-
-	"github.com/infinilabs/operator/internal/controller/common/kubeutil" // Import kubeutil for ApplyObject and ApplyResult
 )
 
 // Ensure our task implementation complies with the Task interface

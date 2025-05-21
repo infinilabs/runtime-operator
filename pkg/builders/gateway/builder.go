@@ -29,27 +29,21 @@ import (
 	"context"
 	"fmt"
 
-	// K8s Types needed for building objects
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-
-	// policyv1 "k8s.io/api/policy/v1" // Import if PDB is used
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	// Import App types and Common types
-	appv1 "github.com/infinilabs/operator/api/app/v1"                // App types
-	"github.com/infinilabs/operator/pkg/apis/common"                 // Common types
-	commonutil "github.com/infinilabs/operator/pkg/apis/common/util" // Common utils
+	appv1 "github.com/infinilabs/runtime-operator/api/app/v1"
+	"github.com/infinilabs/runtime-operator/pkg/apis/common"
+	commonutil "github.com/infinilabs/runtime-operator/pkg/apis/common/util"
 
-	// Import other builders needed to construct nested/related objects
-	builders "github.com/infinilabs/operator/pkg/builders/k8s" // Import generic K8s builders
+	builders "github.com/infinilabs/runtime-operator/pkg/builders/k8s"
 
-	// Import strategy package for the interface definition and registry access
-	"github.com/infinilabs/operator/pkg/strategy"
+	"github.com/infinilabs/runtime-operator/pkg/strategy"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/log" // Use controller-runtime logger
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 const (
