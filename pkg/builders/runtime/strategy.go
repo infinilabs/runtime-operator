@@ -18,10 +18,10 @@ type AppBuilderStrategy interface {
 		ctx context.Context,
 		k8sClient client.Client,
 		scheme *runtime.Scheme,
-		owner client.Object,                 // Owning AppDef
+		owner client.Object, // Owning AppDef
 		appDef *appv1.ApplicationDefinition, // Full AppDef
 		appComp *appv1.ApplicationComponent, // Component being processed
-		appSpecificConfig interface{},       // Unmarshalled specific config
+		appSpecificConfig interface{}, // Unmarshalled specific config
 	) ([]client.Object, error)
 
 	// GetWorkloadGVK returns the expected primary K8s workload GVK managed by this strategy.
@@ -38,9 +38,9 @@ type AppReconcileStrategy interface {
 		appDef *appv1.ApplicationDefinition,
 		appComp *appv1.ApplicationComponent,
 		componentStatus *appv1.ComponentStatusReference, // Mutable status
-		mergedConfig interface{},                        // Unmarshalled specific config
-		desiredObjects []client.Object,                  // Built objects (consider passing map?)
-		applyResults map[string]kubeutil.ApplyResult,    // Results from apply phase
+		mergedConfig interface{}, // Unmarshalled specific config
+		desiredObjects []client.Object, // Built objects (consider passing map?)
+		applyResults map[string]kubeutil.ApplyResult, // Results from apply phase
 		recorder record.EventRecorder,
 	) (needsRequeue bool, err error)
 
