@@ -16,12 +16,12 @@ func BuildPodTemplateSpec(
 	initContainers []corev1.Container,
 	volumes []corev1.Volume,
 	podSecurityContext *corev1.PodSecurityContext, // Pod Security Context (pointer)
-	serviceAccountName string,                     // Service Account name string
-	nodeSelector map[string]string,                // Pod Node Selector (map value type)
-	tolerations []corev1.Toleration,               // Pod Tolerations (slice value type)
-	affinity *corev1.Affinity,                     // Pod Affinity (pointer to K8s struct)
-	podLabels map[string]string,                   // Labels for the Pod template metadata (selector + common)
-	podAnnotations map[string]string,              // Annotations for the Pod template metadata (optional)
+	serviceAccountName string, // Service Account name string
+	nodeSelector map[string]string, // Pod Node Selector (map value type)
+	tolerations []corev1.Toleration, // Pod Tolerations (slice value type)
+	affinity *corev1.Affinity, // Pod Affinity (pointer to K8s struct)
+	podLabels map[string]string, // Labels for the Pod template metadata (selector + common)
+	podAnnotations map[string]string, // Annotations for the Pod template metadata (optional)
 
 ) (*corev1.PodTemplateSpec, error) { // Return pointer and error
 

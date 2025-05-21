@@ -31,7 +31,7 @@ import (
 
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
-	_ "github.com/infinilabs/runtime-operator/pkg/builders/gateway"
+	_ "github.com/infinilabs/runtime-operator/pkg/builders/runtime"
 	_ "github.com/infinilabs/runtime-operator/pkg/reconcilers/gateway"
 
 	"k8s.io/apimachinery/pkg/runtime"

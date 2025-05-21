@@ -23,7 +23,7 @@
 
 // pkg/builders/gateway/builder.go
 // Contains the concrete builder strategy implementation for the Gateway component type.
-package gateway
+package runtime
 
 import (
 	"context"
@@ -53,10 +53,10 @@ const (
 // --- Gateway Builder Strategy Implementation ---
 
 // Ensure our builder implementation complies with the strategy interface
-var _ strategy.AppBuilderStrategy = &GatewayBuilderStrategy{}
+var _ strategy.AppBuilderStrategy = &RuntimeBuilderStrategy{}
 
-// GatewayBuilderStrategy is the concrete implementation of AppBuilderStrategy for the "gateway" type.
-type GatewayBuilderStrategy struct{}
+// RuntimeBuilderStrategy is the concrete implementation of AppBuilderStrategy for the "gateway" type.
+type RuntimeBuilderStrategy struct{}
 
 // Define the expected GVK for Gateway's primary workload (assuming StatefulSet).
 var gatewayWorkloadGVK = schema.FromAPIVersionAndKind("apps/v1", StatefulSetType)
@@ -66,15 +66,15 @@ var gatewayWorkloadGVK = schema.FromAPIVersionAndKind("apps/v1", StatefulSetType
 func init() {
 	// Register this builder using the component type name as the key ("gateway").
 	// 默认注册operator策略
-	strategy.RegisterAppBuilderStrategy("operator", &GatewayBuilderStrategy{})
+	strategy.RegisterAppBuilderStrategy("operator", &RuntimeBuilderStrategy{})
 }
 
 // GetWorkloadGVK implements the AppBuilderStrategy interface.
-func (b *GatewayBuilderStrategy) GetWorkloadGVK() schema.GroupVersionKind {
+func (b *RuntimeBuilderStrategy) GetWorkloadGVK() schema.GroupVersionKind {
 	return gatewayWorkloadGVK
 }
 
-func (b *GatewayBuilderStrategy) verifyParameters(gatewayConfig *common.ResourceConfig, appComp *appv1.ApplicationComponent) error {
+func (b *RuntimeBuilderStrategy) verifyParameters(gatewayConfig *common.ResourceConfig, appComp *appv1.ApplicationComponent) error {
 	if gatewayConfig == nil {
 		return fmt.Errorf("gateway configuration (properties) is mandatory but missing or empty for component '%s'", appComp.Name)
 	}
@@ -106,7 +106,7 @@ func (b *GatewayBuilderStrategy) verifyParameters(gatewayConfig *common.Resource
 }
 
 // BuildObjects implements the AppBuilderStrategy interface.
-func (b *GatewayBuilderStrategy) BuildObjects(ctx context.Context, k8sClient client.Client,
+func (b *RuntimeBuilderStrategy) BuildObjects(ctx context.Context, k8sClient client.Client,
 	scheme *runtime.Scheme, owner client.Object, appDef *appv1.ApplicationDefinition,
 	appComp *appv1.ApplicationComponent, appSpecificConfig interface{}) ([]client.Object, error) {
 	logger := log.FromContext(ctx).WithValues("component", appComp.Name, "type", appComp.Type, "builder", "Gateway")
