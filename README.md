@@ -108,16 +108,18 @@ spec:
             timeoutSeconds: 3
             failureThreshold: 5
         env:
-          - name: loggingEsEndpoint
-            value: http://easysearch-0.easysearch:9200
-          - name: admin
-            value: YOUR_INIT_ADMIN_PASSWORD
-          - name: prodEsEndpoint
-            value: http://easysearch-0.easysearch:9200
-          - name: prodEsUser
+          - name: LOGGING_ES_ENDPOINT
+            value: http://localhost:9200/
+          - name: LOGGING_ES_USER
             value: admin
-          - name: prodEsPass
-            value: YOUR_INIT_ADMIN_PASSWORD
+          - name: LOGGING_ES_PASS
+            value: admin
+          - name: PROD_ES_ENDPOINT
+            value: http://localhost:9200/
+          - name: PROD_ES_USER
+            value: admin
+          - name: PROD_ES_PASS
+            value: admin
         configMounts: # ConfigMap mounts
           - name: infini-gw-config # ConfigMap name (generated as {{.name}}-config)
             mountPath: /gateway.yml 
