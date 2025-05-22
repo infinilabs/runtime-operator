@@ -29,12 +29,10 @@ import (
 	"os"
 	"path/filepath"
 
-	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
-	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
-	_ "github.com/infinilabs/operator/pkg/builders/gateway"    // Trigger init() registration
-	_ "github.com/infinilabs/operator/pkg/reconcilers/gateway" // Trigger init() registration for reconciler
+	_ "github.com/infinilabs/runtime-operator/pkg/builders/runtime"
+	_ "github.com/infinilabs/runtime-operator/pkg/reconcilers/runtime"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -52,11 +50,10 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	policyv1 "k8s.io/api/policy/v1"
 
-	appv1api "github.com/infinilabs/operator/api/app/v1"
-	corev1api "github.com/infinilabs/operator/api/v1"
+	appv1api "github.com/infinilabs/runtime-operator/api/app/v1"
+	corev1api "github.com/infinilabs/runtime-operator/api/v1"
 
-	appcontroller "github.com/infinilabs/operator/internal/controller/app"
-	// +kubebuilder:scaffold:imports
+	appcontroller "github.com/infinilabs/runtime-operator/internal/controller/app"
 )
 
 var (

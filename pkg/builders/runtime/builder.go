@@ -23,33 +23,27 @@
 
 // pkg/builders/gateway/builder.go
 // Contains the concrete builder strategy implementation for the Gateway component type.
-package gateway
+package runtime
 
 import (
 	"context"
 	"fmt"
 
-	// K8s Types needed for building objects
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-
-	// policyv1 "k8s.io/api/policy/v1" // Import if PDB is used
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	// Import App types and Common types
-	appv1 "github.com/infinilabs/operator/api/app/v1"                // App types
-	"github.com/infinilabs/operator/pkg/apis/common"                 // Common types
-	commonutil "github.com/infinilabs/operator/pkg/apis/common/util" // Common utils
+	appv1 "github.com/infinilabs/runtime-operator/api/app/v1"
+	"github.com/infinilabs/runtime-operator/pkg/apis/common"
+	commonutil "github.com/infinilabs/runtime-operator/pkg/apis/common/util"
 
-	// Import other builders needed to construct nested/related objects
-	builders "github.com/infinilabs/operator/pkg/builders/k8s" // Import generic K8s builders
+	builders "github.com/infinilabs/runtime-operator/pkg/builders/k8s"
 
-	// Import strategy package for the interface definition and registry access
-	"github.com/infinilabs/operator/pkg/strategy"
+	"github.com/infinilabs/runtime-operator/pkg/strategy"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/log" // Use controller-runtime logger
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 const (
@@ -59,10 +53,10 @@ const (
 // --- Gateway Builder Strategy Implementation ---
 
 // Ensure our builder implementation complies with the strategy interface
-var _ strategy.AppBuilderStrategy = &GatewayBuilderStrategy{}
+var _ strategy.AppBuilderStrategy = &RuntimeBuilderStrategy{}
 
-// GatewayBuilderStrategy is the concrete implementation of AppBuilderStrategy for the "gateway" type.
-type GatewayBuilderStrategy struct{}
+// RuntimeBuilderStrategy is the concrete implementation of AppBuilderStrategy for the "gateway" type.
+type RuntimeBuilderStrategy struct{}
 
 // Define the expected GVK for Gateway's primary workload (assuming StatefulSet).
 var gatewayWorkloadGVK = schema.FromAPIVersionAndKind("apps/v1", StatefulSetType)
@@ -72,15 +66,15 @@ var gatewayWorkloadGVK = schema.FromAPIVersionAndKind("apps/v1", StatefulSetType
 func init() {
 	// Register this builder using the component type name as the key ("gateway").
 	// 默认注册operator策略
-	strategy.RegisterAppBuilderStrategy("operator", &GatewayBuilderStrategy{})
+	strategy.RegisterAppBuilderStrategy("operator", &RuntimeBuilderStrategy{})
 }
 
 // GetWorkloadGVK implements the AppBuilderStrategy interface.
-func (b *GatewayBuilderStrategy) GetWorkloadGVK() schema.GroupVersionKind {
+func (b *RuntimeBuilderStrategy) GetWorkloadGVK() schema.GroupVersionKind {
 	return gatewayWorkloadGVK
 }
 
-func (b *GatewayBuilderStrategy) verifyParameters(gatewayConfig *common.ResourceConfig, appComp *appv1.ApplicationComponent) error {
+func (b *RuntimeBuilderStrategy) verifyParameters(gatewayConfig *common.ResourceConfig, appComp *appv1.ApplicationComponent) error {
 	if gatewayConfig == nil {
 		return fmt.Errorf("gateway configuration (properties) is mandatory but missing or empty for component '%s'", appComp.Name)
 	}
@@ -112,7 +106,7 @@ func (b *GatewayBuilderStrategy) verifyParameters(gatewayConfig *common.Resource
 }
 
 // BuildObjects implements the AppBuilderStrategy interface.
-func (b *GatewayBuilderStrategy) BuildObjects(ctx context.Context, k8sClient client.Client,
+func (b *RuntimeBuilderStrategy) BuildObjects(ctx context.Context, k8sClient client.Client,
 	scheme *runtime.Scheme, owner client.Object, appDef *appv1.ApplicationDefinition,
 	appComp *appv1.ApplicationComponent, appSpecificConfig interface{}) ([]client.Object, error) {
 	logger := log.FromContext(ctx).WithValues("component", appComp.Name, "type", appComp.Type, "builder", "Gateway")

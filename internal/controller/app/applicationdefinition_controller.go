@@ -44,11 +44,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	appv1 "github.com/infinilabs/operator/api/app/v1"
-	"github.com/infinilabs/operator/internal/controller/common/kubeutil"
-	"github.com/infinilabs/operator/pkg/apis/common" // Needed for OperatorName constant
-	commonutil "github.com/infinilabs/operator/pkg/apis/common/util"
-	"github.com/infinilabs/operator/pkg/strategy"
+	appv1 "github.com/infinilabs/runtime-operator/api/app/v1"
+	"github.com/infinilabs/runtime-operator/internal/controller/common/kubeutil"
+	"github.com/infinilabs/runtime-operator/pkg/apis/common" // Needed for OperatorName constant
+	commonutil "github.com/infinilabs/runtime-operator/pkg/apis/common/util"
+	"github.com/infinilabs/runtime-operator/pkg/strategy"
 )
 
 const (

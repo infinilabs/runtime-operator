@@ -21,22 +21,18 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-// pkg/strategy/strategy.go
-// Defines generic interfaces and registry for application build and reconcile strategies.
-package gateway
+package runtime
 
 import (
 	"context"
-	// Import types used ONLY in the interface definitions
-	appv1 "github.com/infinilabs/operator/api/app/v1" // For ApplicationComponent etc. in signatures
-	"github.com/infinilabs/operator/internal/controller/common/kubeutil"
+
+	appv1 "github.com/infinilabs/runtime-operator/api/app/v1"
+	"github.com/infinilabs/runtime-operator/internal/controller/common/kubeutil"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema" // For GVK
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
-
-// --- Builder Strategy ---
 
 // AppBuilderStrategy defines the contract for application-specific logic during object building.
 type AppBuilderStrategy interface {
@@ -45,10 +41,10 @@ type AppBuilderStrategy interface {
 		ctx context.Context,
 		k8sClient client.Client,
 		scheme *runtime.Scheme,
-		owner client.Object, // Owning AppDef
+		owner client.Object,                 // Owning AppDef
 		appDef *appv1.ApplicationDefinition, // Full AppDef
 		appComp *appv1.ApplicationComponent, // Component being processed
-		appSpecificConfig interface{}, // Unmarshalled specific config
+		appSpecificConfig interface{},       // Unmarshalled specific config
 	) ([]client.Object, error)
 
 	// GetWorkloadGVK returns the expected primary K8s workload GVK managed by this strategy.
@@ -65,9 +61,9 @@ type AppReconcileStrategy interface {
 		appDef *appv1.ApplicationDefinition,
 		appComp *appv1.ApplicationComponent,
 		componentStatus *appv1.ComponentStatusReference, // Mutable status
-		mergedConfig interface{}, // Unmarshalled specific config
-		desiredObjects []client.Object, // Built objects (consider passing map?)
-		applyResults map[string]kubeutil.ApplyResult, // Results from apply phase
+		mergedConfig interface{},                        // Unmarshalled specific config
+		desiredObjects []client.Object,                  // Built objects (consider passing map?)
+		applyResults map[string]kubeutil.ApplyResult,    // Results from apply phase
 		recorder record.EventRecorder,
 	) (needsRequeue bool, err error)
 

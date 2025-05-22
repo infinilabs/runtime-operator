@@ -107,11 +107,6 @@ spec:
             periodSeconds: 10
             timeoutSeconds: 3
             failureThreshold: 5
-        env:
-          - name: GATEWAY_HEAP_SIZE
-            value: "512m"
-          - name: LOG_LEVEL
-            value: "info"
         configMounts: # ConfigMap mounts
           - name: infini-gw-config # ConfigMap name (generated as {{.name}}-config)
             mountPath: /gateway.yml 
@@ -288,33 +283,157 @@ spec:
             periodSeconds: 10
             timeoutSeconds: 3
             failureThreshold: 5
-        env:
-          - name: INFINI_CONSOLE_ENDPOINT
-            value: http://console:9000/
         configMounts: 
           - name: infini-console-config 
             mountPath: /config # Config directory
             readOnly: true
         configFiles: # Config content
-          "security.yml": |
+          "console.yml": |
+            #env:
+            #  INFINI_CONSOLE_ENDPOINT: "http://127.0.0.1:9000"
+            #  INGEST_CLUSTER_ENDPOINT: "https://127.0.0.1:9200"
+            #  INGEST_CLUSTER_CREDENTIAL_ID: chjkp9dath21f1ae9tq0
+            #  SLACK_WEBHOOK_ENDPOINT:
+            #  DISCORD_WEBHOOK_ENDPOINT:
+            #  DINGTALK_WEBHOOK_ENDPOINT:
+            #  WECOM_WEBHOOK_ENDPOINT:
+            #  FEISHU_WEBHOOK_ENDPOINT:
+            
+            # must in major config file
+            path.configs: "config"
+            configs:
+              managed: false
+              auto_reload: true
+              manager:
+                local_configs_repo_path: ./config_repo/
+              tls: #for mTLS connection with config servers
+                enabled: true
+                ca_file: config/certs/ca.crt
+                cert_file: config/certs/ca.crt
+                key_file: config/certs/ca.key
+                skip_insecure_verify: false
+            web:
+              enabled: true
+              embedding_api: true
+              security:
+                enabled: true
+              ui:
+                enabled: true
+                path: .public
+                vfs: true
+                local: true
+              network:
+                binding: 0.0.0.0:9000
+                skip_occupied_port: true
+              gzip:
+                enabled: true
+            
+            elastic:
+              enabled: true
+              remote_configs: true
+              health_check:
+                enabled: true
+                interval: 30s
+              availability_check:
+                enabled: true
+                interval: 60s
+              metadata_refresh:
+                enabled: true
+                interval: 30s
+              cluster_settings_check:
+                enabled: true
+                interval: 20s
+              store:
+                enabled: false
+              orm:
+                enabled: true
+                init_template: true
+                template_name: ".infini"
+                index_prefix: ".infini_"
+            
+            metrics:
+              enabled: true
+              queue: metrics
+              #  event_queue:
+              #    cluster_health: "cluster_metrics"
+              elasticsearch:
+                enabled: true
+                cluster_stats: true
+                node_stats: true
+                index_stats: true
+            
+            ## badger kv storage configuration
+            badger:
+              enabled: true
+              single_bucket_mode: true
+              path: ''
+              memory_mode: false
+              sync_writes: false
+              mem_table_size: 10485760
+              num_mem_tables: 1
+              # lsm tuning options
+              value_log_max_entries: 1000000
+              value_log_file_size: 536870912
+              value_threshold: 1048576
+              num_level0_tables: 1
+              num_level0_tables_stall: 2
+            
             security:
               enabled: true
-              oauth:
-                authorize_url: https://github.com/login/oauth/authorize
-                client_id: your_github_acess_client_id
-                client_secret: your_github_acess_client_secret
-                default_roles:
-                - ReadonlyUI
-                - DATA
-                enabled: true
-                redirect_url: http://your_console_endpoint/sso/callback/
-                role_mapping:
-                  luohoufu:
-                  - Administrator
-                  medcl:
-                  - Administrator
-                scopes: []
-                token_url: https://github.com/login/oauth/access_token
+            #  authc:
+            #    realms:
+            #      ldap:
+            #        test: #setup guide: https://github.com/infinilabs/testing/blob/main/setup/gateway/cases/elasticsearch/elasticsearch-with-ldap.yml
+            #          enabled: true
+            #          host: "localhost"
+            #          port: 3893
+            #          bind_dn: "cn=serviceuser,ou=svcaccts,dc=glauth,dc=com"
+            #          bind_password: "mysecret"
+            #          base_dn: "dc=glauth,dc=com"
+            #          user_filter: "(cn=%s)"
+            #          group_attribute: "ou"
+            #          bypass_api_key: true
+            #          cache_ttl: "10s"
+            #          default_roles: ["ReadonlyUI","DATA"] #default for all ldap users if no specify roles was defined
+            #          role_mapping:
+            #            group:
+            #              superheros: [ "Administrator" ]
+            ##            uid:
+            ##              hackers: [ "Administrator" ]
+            #        testing:
+            #          enabled: true
+            #          host: "ldap.forumsys.com"
+            #          port: 389
+            #          bind_dn: "cn=read-only-admin,dc=example,dc=com"
+            #          bind_password: "password"
+            #          base_dn: "dc=example,dc=com"
+            #          user_filter: "(uid=%s)"
+            #          cache_ttl: "10s"
+            #          default_roles: ["ReadonlyUI","DATA"] #default for all ldap users if no specify roles was defined
+            #          role_mapping:
+            #            uid:
+            #              tesla: [ "readonly","data" ]
+            #  oauth:
+            #    enabled: true
+            #    client_id: "850d747174ace88ce889"
+            #    client_secret: "3d437b64e06371d6f62769320438d3dfc95a8d8e"
+            ##    default_roles: ["ReadonlyUI","DATA"] #default for all sso users if no specify roles was defined
+            #    role_mapping:
+            #      medcl: ["Administrator"]
+            #    authorize_url: "https://github.com/login/oauth/authorize"
+            #    token_url: "https://github.com/login/oauth/access_token"
+            #    redirect_url: ""
+            #    scopes: []
+            
+            #agent:
+            #  setup:
+            #    download_url: "https://release.infinilabs.com/agent/stable"
+            #    version: 0.5.0-214
+            #    ca_cert: "config/certs/ca.crt"
+            #    ca_key: "config/certs/ca.key"
+            #    console_endpoint: $[[env.INFINI_CONSOLE_ENDPOINT]]
+            #    ingest_cluster_endpoint: $[[env.INGEST_CLUSTER_ENDPOINT]]
+            #    ingest_cluster_credential_id: $[[env.INGEST_CLUSTER_CREDENTIAL_ID]]
 ```
 Key configurations for users:
 

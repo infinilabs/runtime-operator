@@ -21,22 +21,18 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-// pkg/builders/k8s/volume.go
 package k8s
 
 import (
 	"fmt"
-	"path" // Needed for path joining
+	"path"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	// Needed for Quantity
-	// *** ADD THIS IMPORT ***
-	"github.com/infinilabs/operator/pkg/apis/common" // Import common types
-	// *** END ADD IMPORT ***
+	"github.com/infinilabs/runtime-operator/pkg/apis/common"
 
-	commonutil "github.com/infinilabs/operator/pkg/apis/common/util" // Common utils
+	commonutil "github.com/infinilabs/runtime-operator/pkg/apis/common/util"
 )
 
 // BuildVolumesFromConfigMaps builds corev1.Volume slices for ConfigMaps from common.ConfigMapMountSpec slices.

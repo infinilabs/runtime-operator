@@ -21,42 +21,30 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-// pkg/builders/k8s/pod.go
 package k8s
 
 import (
-	"fmt" // For potential error formatting
+	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	// Needed for Scheme if passed
-	// common "github.com/infinilabs/operator/pkg/apis/common" // Use specific K8s types as input where possible
 )
 
 // BuildPodTemplateSpec builds a corev1.PodTemplateSpec from assembled K8s spec parts and metadata.
 // This generic builder *assembles* the final PodTemplateSpec. It expects the caller (app-specific builder)
 // to provide fully constructed lists of containers, init containers, volumes, and resolved PodSpec fields.
 func BuildPodTemplateSpec(
-	// Input lists of core Pod/Container specs that are fully built externally.
-	containers []corev1.Container, // List of containers (main + potential sidecars)
-	initContainers []corev1.Container, // List of init containers
-	volumes []corev1.Volume, // List of volumes (ConfigMap, Secret, EmptyDir, HostPath, PVC for Deployment)
-
-	// Input common PodSpec fields (pre-processed from config)
+	containers []corev1.Container,
+	initContainers []corev1.Container,
+	volumes []corev1.Volume,
 	podSecurityContext *corev1.PodSecurityContext, // Pod Security Context (pointer)
-	serviceAccountName string, // Service Account name string
-	nodeSelector map[string]string, // Pod Node Selector (map value type)
-	tolerations []corev1.Toleration, // Pod Tolerations (slice value type)
-	affinity *corev1.Affinity, // Pod Affinity (pointer to K8s struct)
-	// Add other common PodSpec fields if needed
-	// hostAliases []corev1.HostAlias,
-	// dnsPolicy corev1.DNSPolicy,
-	// imagePullSecrets []corev1.LocalObjectReference,
-
-	// Input metadata fields
-	podLabels map[string]string, // Labels for the Pod template metadata (selector + common)
-	podAnnotations map[string]string, // Annotations for the Pod template metadata (optional)
+	serviceAccountName string,                     // Service Account name string
+	nodeSelector map[string]string,                // Pod Node Selector (map value type)
+	tolerations []corev1.Toleration,               // Pod Tolerations (slice value type)
+	affinity *corev1.Affinity,                     // Pod Affinity (pointer to K8s struct)
+	podLabels map[string]string,                   // Labels for the Pod template metadata (selector + common)
+	podAnnotations map[string]string,              // Annotations for the Pod template metadata (optional)
 
 ) (*corev1.PodTemplateSpec, error) { // Return pointer and error
 

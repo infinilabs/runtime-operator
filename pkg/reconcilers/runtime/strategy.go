@@ -21,85 +21,73 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-// pkg/reconcilers/gateway/strategy.go
-package gateway
+package runtime
 
 import (
 	"context"
 	"fmt"
 
-	// Import K8s types needed for checks or task context
 	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors" // <-- Import apierrors
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	// Import specific builders if needed indirectly by helpers
-	k8s_builders "github.com/infinilabs/operator/pkg/builders/k8s" // <-- Import k8s_builders
+	k8sbuilders "github.com/infinilabs/runtime-operator/pkg/builders/k8s"
 
-	// Import local types
-	appv1 "github.com/infinilabs/operator/api/app/v1"
-	"github.com/infinilabs/operator/internal/controller/common/kubeutil" // ApplyResult needed for Reconcile signature
-	"github.com/infinilabs/operator/pkg/apis/common"                     // Needed for ResourceConfig type assertion in CheckAppHealth
-	common_reconcilers "github.com/infinilabs/operator/pkg/reconcilers/common"
-	"github.com/infinilabs/operator/pkg/strategy"
+	appv1 "github.com/infinilabs/runtime-operator/api/app/v1"
+	"github.com/infinilabs/runtime-operator/internal/controller/common/kubeutil"
+	"github.com/infinilabs/runtime-operator/pkg/apis/common"
+	commonreconcilers "github.com/infinilabs/runtime-operator/pkg/reconcilers/common"
+	"github.com/infinilabs/runtime-operator/pkg/strategy"
 
-	// Controller-runtime imports
 	"k8s.io/client-go/tools/record"
 	client "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 // Ensure implementation complies
-var _ strategy.AppReconcileStrategy = &GatewayReconcileStrategy{}
+var _ strategy.AppReconcileStrategy = &ReconcileStrategy{}
 
-// GatewayReconcileStrategy orchestrates the reconciliation flow for the "gateway" application type.
-type GatewayReconcileStrategy struct{}
+// ReconcileStrategy orchestrates the reconciliation flow for the "gateway" application type.
+type ReconcileStrategy struct{}
 
 // Register the strategy
 func init() {
-	strategy.RegisterAppReconcileStrategy("gateway", &GatewayReconcileStrategy{})
+	strategy.RegisterAppReconcileStrategy("gateway", &ReconcileStrategy{})
 }
 
 // Reconcile implements AppReconcileStrategy interface.
 // Defines the sequence of tasks to run for a Gateway component instance.
 // It utilizes the common Task Runner.
-func (s *GatewayReconcileStrategy) Reconcile(
+func (s *ReconcileStrategy) Reconcile(
 	ctx context.Context,
 	k8sClient client.Client,
 	scheme *runtime.Scheme,
 	appDef *appv1.ApplicationDefinition,
-	appComp *appv1.ApplicationComponent, // <--- 这个参数在函数签名中已经有了
-	componentStatus *appv1.ComponentStatusReference, // <--- 这个参数在函数签名中已经有了
-	mergedConfig interface{}, // <--- 这个参数在函数签名中已经有了
-	desiredObjects []client.Object, // <--- 原始的 desiredObjects 列表
-	applyResults map[string]kubeutil.ApplyResult, // <--- 这个参数在函数签名中已经有了
+	appComp *appv1.ApplicationComponent,
+	componentStatus *appv1.ComponentStatusReference,
+	mergedConfig interface{},
+	desiredObjects []client.Object,
+	applyResults map[string]kubeutil.ApplyResult,
 	recorder record.EventRecorder,
-) (bool, error) { // Returns needsRequeue, error
+) (bool, error) {
 	logger := log.FromContext(ctx).WithValues("component", componentStatus.Name, "reconcileStrategy", "Gateway")
 
 	// --- Define the list of tasks for Gateway reconciliation workflow ---
-	taskList := []common_reconcilers.Task{
-		common_reconcilers.NewCheckK8sHealthTask(),
-		// common_reconcilers.NewCheckServiceReadyTask(), // Example
+	taskList := []commonreconcilers.Task{
+		commonreconcilers.NewCheckK8sHealthTask(),
 	}
 
-	// --- Task Context is prepared INTERNALLY by TaskRunner or passed to individual tasks ---
-	// --- You DON'T pass the taskContext struct directly to RunTasks ---
-
 	// --- Run tasks using Task Runner ---
-	taskRunner := common_reconcilers.NewTaskRunner(k8sClient, scheme, recorder)
-
-	// --- 正确的调用方式 ---
-	// 将 Reconcile 函数接收到的参数直接传递给 RunTasks
+	taskRunner := commonreconcilers.NewTaskRunner(k8sClient, scheme, recorder)
 	overallResult, runErr := taskRunner.RunTasks(
 		ctx,
-		appDef,                         // owner (client.Object)
-		appComp,                        // *appv1.ApplicationComponent
-		componentStatus,                // *appv1.ComponentStatusReference
-		mergedConfig,                   // interface{}
-		buildObjectMap(desiredObjects), // map[string]client.Object (需要转换)
-		applyResults,                   // map[string]kubeutil.ApplyResult
-		taskList,                       // []common_reconcilers.Task
+		appDef,
+		appComp,
+		componentStatus,
+		mergedConfig,
+		buildObjectMap(desiredObjects),
+		applyResults,
+		taskList,
 	)
 
 	// --- Handle overall result and error ---
@@ -108,18 +96,20 @@ func (s *GatewayReconcileStrategy) Reconcile(
 		return false, runErr // Signal overall reconcile failure
 	}
 
-	if overallResult == common_reconcilers.TaskResultPending {
+	if overallResult == commonreconcilers.TaskResultPending {
 		logger.V(1).Info("Gateway reconciliation task execution pending")
 		return true, nil // Signal needs requeue
 	}
 
 	logger.V(1).Info("Gateway reconciliation task execution complete")
-	return false, nil // Signal completion
+	return false, nil
 }
 
 // CheckAppHealth implements AppReconcileStrategy interface for Gateway.
 // Performs application-level health check for Gateway.
-func (s *GatewayReconcileStrategy) CheckAppHealth(ctx context.Context, k8sClient client.Client, scheme *runtime.Scheme, appDef *appv1.ApplicationDefinition, appComp *appv1.ApplicationComponent, appSpecificConfig interface{}) (bool, string, error) {
+func (s *ReconcileStrategy) CheckAppHealth(ctx context.Context, k8sClient client.Client,
+	scheme *runtime.Scheme, appDef *appv1.ApplicationDefinition,
+	appComp *appv1.ApplicationComponent, appSpecificConfig interface{}) (bool, string, error) {
 	logger := log.FromContext(ctx).WithValues("component", appComp.Name, "type", appComp.Type)
 	logger.V(1).Info("Executing Gateway application health check (Strategy CheckAppHealth method)")
 
@@ -129,12 +119,9 @@ func (s *GatewayReconcileStrategy) CheckAppHealth(ctx context.Context, k8sClient
 		return false, "Invalid or missing Gateway config for health check", fmt.Errorf("invalid config type %T", appSpecificConfig)
 	}
 
-	// --- Implement Gateway Specific Health Check Logic ---
-	// Example: Check Client Service Endpoints as a basic app-level check
-
 	// 1. Find the primary client service name (convention or config)
 	instanceName := appComp.Name
-	serviceName := k8s_builders.DeriveResourceName(instanceName) // Assume service name matches instance name
+	serviceName := k8sbuilders.DeriveResourceName(instanceName) // Assume service name matches instance name
 	namespace := appDef.Namespace
 
 	// 2. Get the service object
@@ -143,7 +130,6 @@ func (s *GatewayReconcileStrategy) CheckAppHealth(ctx context.Context, k8sClient
 		if apierrors.IsNotFound(err) { // Use apierrors alias
 			return false, fmt.Sprintf("Client service %s not found", serviceName), nil // Not healthy if service missing
 		}
-		// Error during the check process itself
 		return false, fmt.Sprintf("Failed to get client service %s: %v", serviceName, err), err
 	}
 
@@ -184,13 +170,6 @@ func (s *GatewayReconcileStrategy) CheckAppHealth(ctx context.Context, k8sClient
 		return false, fmt.Sprintf("No ready endpoints found for Gateway service (%d/%d ready/total)", readyCount, totalCount), nil
 	}
 
-	// --- Add deeper HTTP check if needed ---
-	// clusterIP := svc.Spec.ClusterIP
-	// httpPort := findHttpPort(...) // Find relevant port
-	// healthURL := fmt.Sprintf("http://%s:%d/healthz", clusterIP, httpPort)
-	// Perform http.Get(healthURL) ...
-
-	// If only endpoint check is done:
 	return true, fmt.Sprintf("Gateway application service has ready endpoints (%d/%d ready/total)", readyCount, totalCount), nil
 }
 
