@@ -38,7 +38,7 @@ import (
 )
 
 // namespace where the project is deployed in
-const namespace = "runtime-operator-system"
+const namespace = "infini-system"
 
 // serviceAccountName created for the project
 const serviceAccountName = "runtime-operator-controller-manager"
