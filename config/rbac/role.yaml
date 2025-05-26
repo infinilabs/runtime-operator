@@ -37,32 +37,6 @@ rules:
   - create
   - patch
 - apiGroups:
-  - app.infini.cloud
-  resources:
-  - applicationdefinitions
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - app.infini.cloud
-  resources:
-  - applicationdefinitions/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - app.infini.cloud
-  resources:
-  - applicationdefinitions/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
   - apps
   resources:
   - daemonsets
@@ -85,6 +59,32 @@ rules:
   - get
   - list
   - watch
+- apiGroups:
+  - infini.cloud
+  resources:
+  - applicationdefinitions
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - infini.cloud
+  resources:
+  - applicationdefinitions/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - infini.cloud
+  resources:
+  - applicationdefinitions/status
+  verbs:
+  - get
+  - patch
+  - update
 - apiGroups:
   - networking.k8s.io
   resources:

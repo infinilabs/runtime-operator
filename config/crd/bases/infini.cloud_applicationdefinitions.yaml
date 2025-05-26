@@ -4,9 +4,9 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.17.2
-  name: applicationdefinitions.app.infini.cloud
+  name: applicationdefinitions.infini.cloud
 spec:
-  group: app.infini.cloud
+  group: infini.cloud
   names:
     categories:
     - infini
