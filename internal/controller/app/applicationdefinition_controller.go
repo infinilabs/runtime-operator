@@ -52,12 +52,10 @@ import (
 )
 
 const (
-	appDefFinalizer   = "app.infini.cloud/finalizer"
-	appNameLabel      = "app.infini.cloud/application-name"
-	compNameLabel     = "app.infini.cloud/component-name"
-	compInstanceLabel = "app.infini.cloud/component-instance"
-	// managedByLabel    = "app.kubernetes.io/managed-by" // Defined in common
-	// operatorName      = "infini-operator" // Defined in common
+	appDefFinalizer   = "infini.cloud/finalizer"
+	appNameLabel      = "infini.cloud/application-name"
+	compNameLabel     = "infini.cloud/component-name"
+	compInstanceLabel = "infini.cloud/component-instance"
 )
 
 // reconcileState holds the state throughout a single reconciliation loop.
@@ -80,9 +78,9 @@ type ApplicationDefinitionReconciler struct {
 }
 
 // RBAC markers... (Ensure they cover all necessary types, including ComponentDefinitions)
-//+kubebuilder:rbac:groups=app.infini.cloud,resources=applicationdefinitions,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=app.infini.cloud,resources=applicationdefinitions/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=app.infini.cloud,resources=applicationdefinitions/finalizers,verbs=update
+//+kubebuilder:rbac:groups=infini.cloud,resources=applicationdefinitions,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=infini.cloud,resources=applicationdefinitions/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=infini.cloud,resources=applicationdefinitions/finalizers,verbs=update
 //+kubebuilder:rbac:groups=core.infini.cloud,resources=componentdefinitions,verbs=get;list;watch
 //+kubebuilder:rbac:groups="",resources=services;persistentvolumeclaims;configmaps;secrets;serviceaccounts,verbs=get;list;watch;create;update;patch;delete;deletecollection
 //+kubebuilder:rbac:groups=apps,resources=deployments;statefulsets;daemonsets,verbs=get;list;watch;create;update;patch;delete;deletecollection

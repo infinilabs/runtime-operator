@@ -6,7 +6,7 @@ domain: infini.cloud
 layout:
 - go.kubebuilder.io/v4
 multigroup: true
-projectName: infini-operator
+projectName: runtime-operator
 repo: github.com/infinilabs/operator
 resources:
 - api:

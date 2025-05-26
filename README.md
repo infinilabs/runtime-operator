@@ -47,7 +47,7 @@ Below is a practical guide for deploying the InfiniLabs' products gateway and co
 Thanks to the automation capabilities of the operator, deploying gateway only requires creating a custom resource in the Kubernetes cluster. The operator will automatically create related resources such as `StatefulSet`, `Service`, `ConfigMap`, and `PVC`. Users simply need to declaratively define desired configurations using the provided template. Below is the YAML file for the gateway custom resource:
 
 ```yaml
-apiVersion: app.infini.cloud/v1
+apiVersion: infini.cloud/v1
 kind: ApplicationDefinition
 metadata:
   name: my-infini-gateway # Application instance name
@@ -220,7 +220,7 @@ Key configurations for users:
 Similarly like gateway, the YAML for the console custom resource is as follows:
 
 ```yaml
-apiVersion: app.infini.cloud/v1
+apiVersion: infini.cloud/v1
 kind: ApplicationDefinition
 metadata:
   name: my-infini-console # Application instance name

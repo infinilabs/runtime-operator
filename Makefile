@@ -122,10 +122,10 @@ docker-buildx: ## Build and push docker image for the manager for cross-platform
 	# copy existing Dockerfile and insert --platform=${BUILDPLATFORM} into Dockerfile.cross, and preserve the original Dockerfile
 	sed -e '1 s/\(^FROM\)/FROM --platform=\$$\{BUILDPLATFORM\}/; t' -e ' 1,// s//FROM --platform=\$$\{BUILDPLATFORM\}/' Dockerfile > Dockerfile.cross
 	export BUILDX_NO_DEFAULT_ATTESTATIONS=1
-	- $(CONTAINER_TOOL) buildx create --name infini-operator-builder
-	$(CONTAINER_TOOL) buildx use infini-operator-builder
+	- $(CONTAINER_TOOL) buildx create --name runtime-operator-builder
+	$(CONTAINER_TOOL) buildx use runtime-operator-builder
 	- $(CONTAINER_TOOL) buildx build --push --platform=$(PLATFORMS) --tag ${IMG} --cache-from=type=local,src=$(HOME)/.docker/.buildx-cache --cache-to=type=local,dest=$(HOME)/.docker/.buildx-cache,mode=max -f Dockerfile.cross .
-	- $(CONTAINER_TOOL) buildx rm infini-operator-builder
+	- $(CONTAINER_TOOL) buildx rm runtime-operator-builder
 	rm Dockerfile.cross
 
 .PHONY: build-installer

@@ -24,7 +24,7 @@
 // api/app/v1/applicationdefinition_types.go
 // Package v1 contains API Schema definitions for the app v1 API group
 // +kubebuilder:object:generate=true
-// +groupName=app.infini.cloud
+// +groupName=infini.cloud
 package v1
 
 import (

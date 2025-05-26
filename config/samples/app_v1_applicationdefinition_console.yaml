@@ -1,4 +1,4 @@
-apiVersion: app.infini.cloud/v1
+apiVersion: infini.cloud/v1
 kind: ApplicationDefinition
 metadata:
   name: my-infini-console # 应用实例名称

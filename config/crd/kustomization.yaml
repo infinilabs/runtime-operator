@@ -3,7 +3,7 @@
 # It should be run by config/default
 resources:
 - bases/core.infini.cloud_componentdefinitions.yaml
-- bases/app.infini.cloud_applicationdefinitions.yaml
+- bases/infini.cloud_applicationdefinitions.yaml
 # +kubebuilder:scaffold:crdkustomizeresource
 
 patches:
