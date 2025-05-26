@@ -30,5 +30,5 @@ const (
 	CompNameLabel     = "infini.cloud/component-name"     // Label for ComponentDefinition name (type)
 	CompInstanceLabel = "infini.cloud/component-instance" // Label for ApplicationComponent name (instance)
 	ManagedByLabel    = "app.kubernetes.io/managed-by"    // Standard Kubernetes label
-	OperatorName      = "infini-operator"                 // Name of this operator
+	OperatorName      = "runtime-operator"                // Name of this operator
 )

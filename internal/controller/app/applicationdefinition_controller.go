@@ -56,8 +56,6 @@ const (
 	appNameLabel      = "infini.cloud/application-name"
 	compNameLabel     = "infini.cloud/component-name"
 	compInstanceLabel = "infini.cloud/component-instance"
-	// managedByLabel    = "app.kubernetes.io/managed-by" // Defined in common
-	// operatorName      = "infini-operator" // Defined in common
 )
 
 // reconcileState holds the state throughout a single reconciliation loop.
