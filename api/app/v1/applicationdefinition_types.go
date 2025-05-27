@@ -74,7 +74,10 @@ type ApplicationComponent struct {
 	// +kubebuilder:validation:MaxLength=63
 	// +kubebuilder:validation:Pattern=`^[a-z0-9]([-a-z0-9_.]*)?[a-z0-9]$`
 	Name string `json:"name"`
-
+	// +kubebuilder:validation:Required
+	APIVersion string `json:"apiVersion"`
+	// +kubebuilder:validation:Required
+	Kind string `json:"kind"`
 	// Type references the `metadata.name` of a `ComponentDefinition` resource in the same namespace.
 	Type string `json:"type,omitempty"`
 
