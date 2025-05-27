@@ -213,6 +213,13 @@ func BuildServicePorts(portSpecs []common.PortSpec) []corev1.ServicePort {
 			Protocol:   protocol,
 			// NodePort: // Only set if Service Type is NodePort and value is provided/required
 		}
+		if ps.NodePort != 0 {
+			// 校验合法性
+			if ps.NodePort < 30000 || ps.NodePort > 32767 {
+			} else {
+				sp.NodePort = ps.NodePort
+			}
+		}
 		k8sPorts = append(k8sPorts, sp)
 	}
 	return k8sPorts

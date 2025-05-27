@@ -69,6 +69,10 @@ spec:
                   description: ApplicationComponent defines a single component instance
                     within an ApplicationDefinition.
                   properties:
+                    apiVersion:
+                      type: string
+                    kind:
+                      type: string
                     name:
                       description: Name is the unique identifier for this component
                         instance within the ApplicationDefinition.
@@ -86,6 +90,8 @@ spec:
                         resource in the same namespace.
                       type: string
                   required:
+                  - apiVersion
+                  - kind
                   - name
                   - properties
                   type: object

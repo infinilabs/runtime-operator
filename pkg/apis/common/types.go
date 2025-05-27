@@ -70,6 +70,8 @@ type PortSpec struct {
 	Protocol corev1.Protocol `json:"protocol,omitempty"`
 	// +optional
 	TargetPort *intstr.IntOrString `json:"targetPort,omitempty"`
+	// +optional
+	NodePort int32 `json:"nodePort,omitempty"`
 }
 
 // ProbesConfig groups different types of probes.

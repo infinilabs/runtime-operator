@@ -6,6 +6,8 @@ metadata:
 spec:
   components:
     - name: infini-gw # 组件实例名称 (会影响资源名称)
+      apiVersion: "apps/v1"
+      kind: "StatefulSet"
       properties:
         # --- 核心配置 ---
         replicas: 1 # 副本数 (例如: 1 或 3)
@@ -36,11 +38,11 @@ spec:
         service: # 服务暴露配置
           type: NodePort # 使用 NodePort 便于测试，或 LoadBalancer
           ports:
-            - name: http # Service 端口名称
+            - name: http-2900 # Service 端口名称
               containerPort: 2900 # Service 监听的端口
-               # targetPort: 8080 # 转发的目标 Pod 端口 (默认等于 containerPort)
-               # nodePort: 30080 # 可选：指定 NodePort 端口
-            - name: http # Service 端口名称
+              targetPort: 8000 # 转发的目标 Pod 端口 (默认等于 containerPort)
+              nodePort: 30080 # 可选：指定 NodePort 端口
+            - name: http-8000 # Service 端口名称
               containerPort: 8000 # Service 监听的端口
         resources:
           requests:

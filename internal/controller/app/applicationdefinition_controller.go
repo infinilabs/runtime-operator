@@ -502,6 +502,14 @@ func (r *ApplicationDefinitionReconciler) checkHealthAndCalculateStatus(ctx cont
 	appDef := state.appDef // For convenience
 
 	for compName, compStatus := range state.componentStatuses {
+		if appDef.Spec.Components == nil || len(appDef.Spec.Components) == 0 {
+			continue
+		}
+		spec := appDef.Spec.Components[0]
+		compStatus.Namespace = appDef.Namespace
+		compStatus.ResourceName = compName
+		compStatus.APIVersion = spec.APIVersion
+		compStatus.Kind = spec.Kind
 		compLogger := logger.WithValues("component", compName, "kind", compStatus.Kind, "resourceName", compStatus.ResourceName)
 
 		// Find the corresponding component spec (needed for app health check)
@@ -545,7 +553,6 @@ func (r *ApplicationDefinitionReconciler) checkHealthAndCalculateStatus(ctx cont
 
 		// --- 1. Check K8s Resource Health ---
 		k8sHealthy, k8sMessage, k8sCheckErr := kubeutil.CheckHealth(ctx, r.Client, r.Scheme, compStatus.Namespace, compStatus.ResourceName, compStatus.APIVersion, compStatus.Kind)
-
 		if k8sCheckErr != nil {
 			// Error during the K8s health check process itself
 			compLogger.Error(k8sCheckErr, "Failed to execute K8s resource health check process")
@@ -571,62 +578,9 @@ func (r *ApplicationDefinitionReconciler) checkHealthAndCalculateStatus(ctx cont
 
 		// --- 2. Check Application-Level Health (if K8s resource is healthy) ---
 		compLogger.V(1).Info("K8s resource is healthy, proceeding to application-level health check")
-		reconcileStrategy, ok := strategy.GetAppReconcileStrategy(appComp.Type)
-		if !ok {
-			// This should ideally not happen if builder worked, but check defensively
-			errMsg := fmt.Sprintf("No reconcile strategy found for type '%s', cannot perform app health check.", appComp.Type)
-			compLogger.Error(nil, errMsg)
-			compStatus.Health = false // Mark as unhealthy if strategy is missing
-			compStatus.Message = "AppHealthCheckSkipped: ReconcileStrategyNotFound"
-			allComponentsReady = false
-			if firstCheckErr == nil { // Consider this an internal error
-				firstCheckErr = fmt.Errorf(errMsg)
-			}
-			continue
-		}
 
-		// Retrieve the unmarshalled config stored earlier
-		appSpecificConfig, configOk := state.unmarshalledConfigs[compName]
-		if !configOk {
-			// Should not happen if processComponentsAndBuildObjects succeeded
-			errMsg := fmt.Sprintf("Internal error: Unmarshalled config not found for component %s", compName)
-			compLogger.Error(nil, errMsg)
-			compStatus.Health = false
-			compStatus.Message = "AppHealthCheckSkipped: ConfigNotFound"
-			allComponentsReady = false
-			if firstCheckErr == nil {
-				firstCheckErr = fmt.Errorf(errMsg)
-			}
-			continue
-		}
-
-		// Call the application-specific health check
-		appHealthy, appMessage, appCheckErr := reconcileStrategy.CheckAppHealth(ctx, r.Client, r.Scheme, appDef, appComp, appSpecificConfig)
-
-		if appCheckErr != nil {
-			// Error during the app health check process itself
-			compLogger.Error(appCheckErr, "Failed to execute application health check process")
-			compStatus.Health = false
-			compStatus.Message = fmt.Sprintf("AppHealthCheckError: %v", appCheckErr)
-			allComponentsReady = false
-			needsRequeue = true // Requeue needed to retry the app health check
-			if firstCheckErr == nil {
-				firstCheckErr = appCheckErr
-			}
-			continue
-		}
-
-		// Update status based on app health result
-		compStatus.Health = appHealthy
-		compStatus.Message = appMessage // Use message from CheckAppHealth
-		if !appHealthy {
-			compLogger.V(1).Info("Application health check failed", "reason", appMessage)
-			allComponentsReady = false
-			needsRequeue = true // Requeue needed as app is not healthy yet
-		} else {
-			compLogger.V(1).Info("Application health check passed")
-		}
-	} // End component loop
+		return true, false, firstCheckErr
+	}
 
 	return allComponentsReady, needsRequeue, firstCheckErr
 }
