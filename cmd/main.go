@@ -51,7 +51,6 @@ import (
 	policyv1 "k8s.io/api/policy/v1"
 
 	appv1api "github.com/infinilabs/runtime-operator/api/app/v1"
-	corev1api "github.com/infinilabs/runtime-operator/api/v1"
 
 	appcontroller "github.com/infinilabs/runtime-operator/internal/controller/app"
 )
@@ -72,7 +71,6 @@ func init() {
 
 	// Register CRD types
 	utilruntime.Must(appv1api.AddToScheme(scheme))
-	utilruntime.Must(corev1api.AddToScheme(scheme))
 
 	// +kubebuilder:scaffold:scheme
 }
