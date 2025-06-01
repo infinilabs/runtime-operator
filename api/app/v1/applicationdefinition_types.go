@@ -93,9 +93,12 @@ type ApplicationComponent struct {
 
 // ApplicationDefinitionSpec defines the desired state of an ApplicationDefinition.
 type ApplicationDefinitionSpec struct {
-	// Component lists the desired component instances for this application.
+	// Components lists the desired component instances for this application.
 	// +kubebuilder:validation:Required
-	Component ApplicationComponent `json:"components"`
+	// +kubebuilder:validation:MinItems=1
+	// +listType=map
+	// +listMapKey=name
+	Components []ApplicationComponent `json:"components"`
 }
 
 // ComponentStatusReference provides a summary of the status of a deployed component's primary resource.
@@ -182,6 +185,13 @@ type ApplicationDefinition struct {
 
 // +kubebuilder:object:root=true
 
+// ApplicationDefinitionList contains a list of ApplicationDefinition.
+type ApplicationDefinitionList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []ApplicationDefinition `json:"items"`
+}
+
 func init() {
-	SchemeBuilder.Register(&ApplicationDefinition{})
+	SchemeBuilder.Register(&ApplicationDefinition{}, &ApplicationDefinitionList{})
 }

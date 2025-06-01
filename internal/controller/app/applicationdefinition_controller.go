@@ -123,7 +123,7 @@ func (r *ApplicationDefinitionReconciler) Reconcile(ctx context.Context, req ctr
 	logger.V(1).Info("Initialized component status map", "count", len(state.componentStatuses))
 
 	// Handle case where application has no components defined
-	if state.appDef.Spec.Component.Name == "" {
+	if len(state.appDef.Spec.Components) == 0 {
 		return r.handleEmptyApp(ctx, state)
 	}
 
@@ -235,19 +235,20 @@ func (r *ApplicationDefinitionReconciler) Reconcile(ctx context.Context, req ctr
 // initializeComponentStatuses populates the initial status map.
 func (r *ApplicationDefinitionReconciler) initializeComponentStatuses(state *reconcileState) error {
 	names := make(map[string]bool)
-	comp := state.appDef.Spec.Component
-	if comp.Name == "" {
-		return fmt.Errorf("component name cannot be empty in spec")
-	}
-	if names[comp.Name] {
-		return fmt.Errorf("duplicate component name found in spec: %s", comp.Name)
-	}
-	names[comp.Name] = true
+	for _, comp := range state.appDef.Spec.Components {
+		if comp.Name == "" {
+			return fmt.Errorf("component name cannot be empty in spec")
+		}
+		if names[comp.Name] {
+			return fmt.Errorf("duplicate component name found in spec: %s", comp.Name)
+		}
+		names[comp.Name] = true
 
-	state.componentStatuses[comp.Name] = &appv1.ComponentStatusReference{
-		Name:    comp.Name,
-		Health:  false, // Default to unhealthy
-		Message: "Initializing",
+		state.componentStatuses[comp.Name] = &appv1.ComponentStatusReference{
+			Name:    comp.Name,
+			Health:  false, // Default to unhealthy
+			Message: "Initializing",
+		}
 	}
 	// TODO: Optionally remove statuses for components that are no longer in the spec?
 	// This might be better handled by K8s GC based on owner refs.
@@ -347,85 +348,88 @@ func (r *ApplicationDefinitionReconciler) processComponentsAndBuildObjects(ctx c
 	logger := log.FromContext(ctx)
 	appDef := state.appDef
 	state.desiredObjects = []client.Object{} // Ensure clean slate for this cycle
-	appComp := appDef.Spec.Component         // Use index to get mutable reference if needed, but copy is safer
-	appComp.Type = "operator"
 
-	compLogger := logger.WithValues("component", appComp.Name, "componentType", appComp.Type)
-	compStatus := state.componentStatuses[appComp.Name] // Get status entry
+	for i := range appDef.Spec.Components {
+		appComp := appDef.Spec.Components[i] // Use index to get mutable reference if needed, but copy is safer
+		appComp.Type = "operator"
 
-	compStatus.Message = "Processing" // Update status message
+		compLogger := logger.WithValues("component", appComp.Name, "componentType", appComp.Type)
+		compStatus := state.componentStatuses[appComp.Name] // Get status entry
 
-	// 2. Unmarshal specific configuration
-	appSpecificConfig, err := commonutil.UnmarshalAppSpecificConfig(appComp.Type, appComp.Properties)
-	if err != nil {
-		errMsg := fmt.Sprintf("Failed to unmarshal properties for component '%s' (type %s): %v", appComp.Name, appComp.Type, err)
-		compLogger.Error(err, errMsg)
-		r.updateComponentStatusWithError(compStatus, "ConfigUnmarshalFailed", errMsg)
-		return fmt.Errorf(errMsg)
-	}
-	// [Added] Store unmarshalled config for later use (e.g., health checks)
-	state.unmarshalledConfigs[appComp.Name] = appSpecificConfig
+		compStatus.Message = "Processing" // Update status message
 
-	// 3. Get Builder Strategy
-	builderStrategy, ok := strategy.GetAppBuilderStrategy(appComp.Type)
-	if !ok {
-		errMsg := fmt.Sprintf("No builder strategy registered for component type '%s'", appComp.Type)
-		compLogger.Error(nil, errMsg) // No underlying error, just missing strategy
-		r.updateComponentStatusWithError(compStatus, "BuilderStrategyNotFound", errMsg)
-		return fmt.Errorf(errMsg)
-	}
-
-	// 4. Build K8s Objects using the strategy
-	compLogger.V(1).Info("Calling builder strategy BuildObjects")
-	builtObjects, err := builderStrategy.BuildObjects(ctx, r.Client, r.Scheme, appDef, appDef, &appComp, appSpecificConfig)
-	if err != nil {
-		errMsg := fmt.Sprintf("Builder strategy failed for component '%s' (type %s): %v", appComp.Name, appComp.Type, err)
-		compLogger.Error(err, errMsg)
-		r.updateComponentStatusWithError(compStatus, "BuildObjectsFailed", errMsg)
-		return fmt.Errorf("builder strategy failed for component %s: %w", appComp.Name, err) // Wrap error
-	}
-
-	// Process built objects
-	for _, obj := range builtObjects {
-		if obj == nil {
-			compLogger.Info("Warning: Builder strategy returned a nil object, skipping")
-			continue
+		// 2. Unmarshal specific configuration
+		appSpecificConfig, err := commonutil.UnmarshalAppSpecificConfig(appComp.Type, appComp.Properties)
+		if err != nil {
+			errMsg := fmt.Sprintf("Failed to unmarshal properties for component '%s' (type %s): %v", appComp.Name, appComp.Type, err)
+			compLogger.Error(err, errMsg)
+			r.updateComponentStatusWithError(compStatus, "ConfigUnmarshalFailed", errMsg)
+			return fmt.Errorf(errMsg)
 		}
-		// Ensure metadata like Name and Namespace are set by builders
-		if obj.GetName() == "" || obj.GetNamespace() == "" {
-			gvkStr := "unknown GVK"
-			if gvk := obj.GetObjectKind().GroupVersionKind(); gvk.Kind != "" {
-				gvkStr = gvk.String()
+		// [Added] Store unmarshalled config for later use (e.g., health checks)
+		state.unmarshalledConfigs[appComp.Name] = appSpecificConfig
+
+		// 3. Get Builder Strategy
+		builderStrategy, ok := strategy.GetAppBuilderStrategy(appComp.Type)
+		if !ok {
+			errMsg := fmt.Sprintf("No builder strategy registered for component type '%s'", appComp.Type)
+			compLogger.Error(nil, errMsg) // No underlying error, just missing strategy
+			r.updateComponentStatusWithError(compStatus, "BuilderStrategyNotFound", errMsg)
+			return fmt.Errorf(errMsg)
+		}
+
+		// 4. Build K8s Objects using the strategy
+		compLogger.V(1).Info("Calling builder strategy BuildObjects")
+		builtObjects, err := builderStrategy.BuildObjects(ctx, r.Client, r.Scheme, appDef, appDef, &appComp, appSpecificConfig)
+		if err != nil {
+			errMsg := fmt.Sprintf("Builder strategy failed for component '%s' (type %s): %v", appComp.Name, appComp.Type, err)
+			compLogger.Error(err, errMsg)
+			r.updateComponentStatusWithError(compStatus, "BuildObjectsFailed", errMsg)
+			return fmt.Errorf("builder strategy failed for component %s: %w", appComp.Name, err) // Wrap error
+		}
+
+		// Process built objects
+		for _, obj := range builtObjects {
+			if obj == nil {
+				compLogger.Info("Warning: Builder strategy returned a nil object, skipping")
+				continue
 			}
-			err := fmt.Errorf("builder returned object of type %s without name or namespace for component %s", gvkStr, appComp.Name)
-			compLogger.Error(err, "Invalid built object")
-			r.updateComponentStatusWithError(compStatus, "InvalidBuiltObject", err.Error())
-			return err // Critical build error
-		}
-		// Apply standard labels
-		labels := obj.GetLabels()
-		if labels == nil {
-			labels = make(map[string]string)
-		}
-		labels[appNameLabel] = appDef.Name
-		labels[compNameLabel] = appComp.Type
-		labels[compInstanceLabel] = appComp.Name
-		labels[common.ManagedByLabel] = common.OperatorName
-		obj.SetLabels(labels)
+			// Ensure metadata like Name and Namespace are set by builders
+			if obj.GetName() == "" || obj.GetNamespace() == "" {
+				gvkStr := "unknown GVK"
+				if gvk := obj.GetObjectKind().GroupVersionKind(); gvk.Kind != "" {
+					gvkStr = gvk.String()
+				}
+				err := fmt.Errorf("builder returned object of type %s without name or namespace for component %s", gvkStr, appComp.Name)
+				compLogger.Error(err, "Invalid built object")
+				r.updateComponentStatusWithError(compStatus, "InvalidBuiltObject", err.Error())
+				return err // Critical build error
+			}
+			// Apply standard labels
+			labels := obj.GetLabels()
+			if labels == nil {
+				labels = make(map[string]string)
+			}
+			labels[appNameLabel] = appDef.Name
+			labels[compNameLabel] = appComp.Type
+			labels[compInstanceLabel] = appComp.Name
+			labels[common.ManagedByLabel] = common.OperatorName
+			obj.SetLabels(labels)
 
-		state.desiredObjects = append(state.desiredObjects, obj)
+			state.desiredObjects = append(state.desiredObjects, obj)
 
-		// Update status with primary resource details if matching GVK from CompDef
-		gvk := obj.GetObjectKind().GroupVersionKind()
-		if gvk.Kind == compStatus.Kind && gvk.GroupVersion().String() == compStatus.APIVersion {
-			compStatus.ResourceName = obj.GetName()
-			compStatus.Namespace = obj.GetNamespace()
-			compLogger.V(1).Info("Identified primary resource", "kind", gvk.Kind, "name", obj.GetName())
+			// Update status with primary resource details if matching GVK from CompDef
+			gvk := obj.GetObjectKind().GroupVersionKind()
+			if gvk.Kind == compStatus.Kind && gvk.GroupVersion().String() == compStatus.APIVersion {
+				compStatus.ResourceName = obj.GetName()
+				compStatus.Namespace = obj.GetNamespace()
+				compLogger.V(1).Info("Identified primary resource", "kind", gvk.Kind, "name", obj.GetName())
+			}
 		}
+
+		compStatus.Message = "Built successfully" // Update status after successful build for this component
+		compLogger.V(1).Info("Component processed successfully", "builtObjectCount", len(builtObjects))
 	}
-
-	compStatus.Message = "Built successfully" // Update status after successful build for this component
-	compLogger.V(1).Info("Component processed successfully", "builtObjectCount", len(builtObjects))
 	return nil // All components processed without critical error
 }
 
@@ -498,7 +502,10 @@ func (r *ApplicationDefinitionReconciler) checkHealthAndCalculateStatus(ctx cont
 	appDef := state.appDef // For convenience
 
 	for compName, compStatus := range state.componentStatuses {
-		spec := appDef.Spec.Component
+		if appDef.Spec.Components == nil || len(appDef.Spec.Components) == 0 {
+			continue
+		}
+		spec := appDef.Spec.Components[0]
 		compStatus.Namespace = appDef.Namespace
 		compStatus.ResourceName = compName
 		compStatus.APIVersion = spec.APIVersion
@@ -507,7 +514,12 @@ func (r *ApplicationDefinitionReconciler) checkHealthAndCalculateStatus(ctx cont
 
 		// Find the corresponding component spec (needed for app health check)
 		var appComp *appv1.ApplicationComponent
-		appComp = &appDef.Spec.Component
+		for i := range appDef.Spec.Components {
+			if appDef.Spec.Components[i].Name == compName {
+				appComp = &appDef.Spec.Components[i]
+				break
+			}
+		}
 		if appComp == nil {
 			compLogger.Error(nil, "Internal error: Cannot find component spec in AppDef corresponding to status entry")
 			allComponentsReady = false
