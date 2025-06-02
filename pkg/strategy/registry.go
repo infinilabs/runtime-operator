@@ -39,7 +39,7 @@ var reconcileStrategyRegistry = make(map[string]AppReconcileStrategy)
 
 // RegisterAppBuilderStrategy registers a builder strategy for a specific component type.
 // This function MUST be called from the init() function of the specific builder strategy package
-// (e.g., pkg/builders/gateway/strategy.go) to ensure registration happens before the operator starts.
+// (e.g., pkg/builders/runtime/strategy.go) to ensure registration happens before the operator starts.
 // Panics if a strategy for the given type is already registered.
 func RegisterAppBuilderStrategy(compType string, strategy AppBuilderStrategy) {
 	if compType == "" {
@@ -67,7 +67,6 @@ func GetAppBuilderStrategy(compType string) (AppBuilderStrategy, bool) {
 
 // RegisterAppReconcileStrategy registers a reconcile strategy for a specific component type.
 // Called from the init() function of the specific reconcile strategy package
-// (e.g., pkg/reconcilers/gateway/strategy.go).
 // Panics if a strategy for the given type is already registered.
 func RegisterAppReconcileStrategy(compType string, strategy AppReconcileStrategy) {
 	if compType == "" {
@@ -94,8 +93,4 @@ func GetAppReconcileStrategy(compType string) (AppReconcileStrategy, bool) {
 // Placeholder init - Actual registrations happen in specific strategy packages' init() functions.
 func init() {
 	fmt.Println("INFO: Strategy registry package initialized.")
-	// --- DO NOT ADD REGISTRATIONS HERE ---
-	// Registrations MUST occur in the init() function of the package defining the strategy implementation.
-	// Example (inside pkg/builders/gateway/strategy.go):
-	// func init() { strategy.RegisterAppBuilderStrategy("gateway", &GatewayBuilderStrategy{}) }
 }

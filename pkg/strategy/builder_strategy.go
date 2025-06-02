@@ -50,7 +50,7 @@ type AppBuilderStrategy interface {
 	//   - appDef: The full ApplicationDefinition resource.
 	//   - appComp: The specific ApplicationComponent being processed.
 	//   - appSpecificConfig: The UNMARSHALLED application-specific configuration struct
-	//     (e.g., *common.GatewayConfig, *common.OpensearchClusterConfig) corresponding to appComp.Type.
+	//     (e.g., *common.RuntimeConfig, *common.OpensearchClusterConfig) corresponding to appComp.Type.
 	//     The implementation MUST type assert this interface{} to its expected concrete type.
 	//
 	// Returns:

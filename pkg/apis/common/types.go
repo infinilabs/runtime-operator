@@ -215,8 +215,6 @@ type AppConfigData map[string]string
 // --- Application Specific Configuration Structures ---
 // Define the STRUCTURE of the config provided in ApplicationComponent.Properties for each type.
 
-// RuntimeConfig defines the expected structure within ApplicationComponent.Properties when Type is "gateway".
-// RuntimeConfig defines the expected structure within ApplicationComponent.Properties when Type is "gateway".
 // It includes core workload settings and potentially overrides for common components.
 type RuntimeConfig struct {
 	// --- Core Workload Settings ---
@@ -234,7 +232,7 @@ type RuntimeConfig struct {
 	Command []string   `json:"command,omitempty" protobuf:"bytes,3,rep,name=command"`
 	Args    []string   `json:"args,omitempty" protobuf:"bytes,4,rep,name=args"`
 
-	// Ports defines the network ports exposed by the gateway container.
+	// Ports defines the network ports exposed by the container.
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinItems=1
 	// +optional
@@ -299,7 +297,7 @@ type RuntimeConfig struct {
 
 	// --- Service Exposure ---
 
-	// Service defines how to expose the Gateway pods via a Kubernetes Service.
+	// Service defines how to expose the pods via a Kubernetes Service.
 	// +optional
 	Service *ServiceSpecPart `json:"service,omitempty"` // Use the helper struct defined below
 
@@ -333,8 +331,6 @@ type RuntimeConfig struct {
 	// +optional
 	VolumeMounts []corev1.VolumeMount `json:"volumeMounts,omitempty"`
 
-	// --- StatefulSet Specific Overrides (if Gateway is a StatefulSet) ---
-
 	// StatefulSetUpdateStrategy defines the update strategy for the StatefulSet.
 	// +optional
 	StatefulSetUpdateStrategy *StatefulSetUpdateStrategyPart `json:"statefulSetUpdateStrategy,omitempty"` // Likely *appsv1.StatefulSetUpdateStrategy
@@ -345,17 +341,9 @@ type RuntimeConfig struct {
 
 	// --- Pod Disruption Budget (Optional) ---
 
-	// PodDisruptionBudget defines the PDB settings for the gateway deployment/statefulset.
+	// PodDisruptionBudget defines the PDB settings for the deployment/statefulset.
 	// +optional
 	PodDisruptionBudget *PodDisruptionBudgetSpecPart `json:"podDisruptionBudget,omitempty"` // Likely *policyv1.PodDisruptionBudgetSpec
-
-	// --- Other Gateway specific parameters ---
-	// Add any other flags or configurations specific to your Gateway application here.
-	// Example:
-	// +optional
-	// SomeGatewayFeatureFlag *bool `json:"someGatewayFeatureFlag,omitempty"`
-	// +optional
-	// LogLevel *string `json:"logLevel,omitempty"`
 }
 
 // OpensearchClusterConfig defines parameters specific to OpenSearch clusters.

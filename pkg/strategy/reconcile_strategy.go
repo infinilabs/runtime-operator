@@ -53,7 +53,7 @@ type AppReconcileStrategy interface {
 	//   - appDef: The owner ApplicationDefinition resource.
 	//   - appComp: The specific ApplicationComponent being processed.
 	//   - componentStatus: Pointer to the mutable status entry for this component. Tasks update this.
-	//   - mergedConfig: Unmarshalled application-specific configuration struct pointer (e.g., *common.GatewayConfig).
+	//   - mergedConfig: Unmarshalled application-specific configuration struct pointer (e.g., *common.RuntimeConfig).
 	//   - desiredObjects: Slice of all desired K8s objects built by the builder strategy.
 	//   - applyResults: Map containing results from the initial apply phase (Key: GVKString/NsName).
 	//   - recorder: Event recorder.

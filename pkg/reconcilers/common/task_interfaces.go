@@ -84,7 +84,7 @@ type TaskContext struct {
 
 	// --- Data from Previous Stages (Builders, Apply) ---
 	// The unmarshalled application-specific configuration for this component.
-	// Type assertion needed within tasks (e.g., config := tc.MergedConfig.(*common.GatewayConfig)).
+	// Type assertion needed within tasks (e.g., config := tc.MergedConfig.(*common.RuntimeConfig)).
 	MergedConfig interface{}
 
 	// Map of desired K8s objects built by the builder strategy for this component.
