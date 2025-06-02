@@ -67,7 +67,7 @@ func UnmarshalAppSpecificConfig(appCompType string, rawProperties runtime.RawExt
 	}
 
 	var specificConfig interface{} // Target Go struct pointer
-	specificConfig = &common.ResourceConfig{}
+	specificConfig = &common.RuntimeConfig{}
 
 	// --- Perform Unmarshalling ---
 	// Use json.Unmarshal as RawExtension contains JSON/YAML bytes.

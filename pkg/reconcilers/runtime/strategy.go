@@ -114,7 +114,7 @@ func (s *ReconcileStrategy) CheckAppHealth(ctx context.Context, k8sClient client
 	logger.V(1).Info("Executing Gateway application health check (Strategy CheckAppHealth method)")
 
 	// Type assert the specific config
-	gatewayConfig, ok := appSpecificConfig.(*common.ResourceConfig)
+	gatewayConfig, ok := appSpecificConfig.(*common.RuntimeConfig)
 	if !ok || gatewayConfig == nil {
 		return false, "Invalid or missing Gateway config for health check", fmt.Errorf("invalid config type %T", appSpecificConfig)
 	}
