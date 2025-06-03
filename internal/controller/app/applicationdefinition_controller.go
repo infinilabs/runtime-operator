@@ -90,6 +90,11 @@ type ApplicationDefinitionReconciler struct {
 //+kubebuilder:rbac:groups="",resources=endpoints,verbs=get;list;watch
 
 func (r *ApplicationDefinitionReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	// check if the request is for the correct namespace
+	if req.NamespacedName.Namespace != common.Namespace {
+		return ctrl.Result{}, nil
+	}
+
 	logger := log.FromContext(ctx).WithValues("appdefinition", req.NamespacedName)
 	startTime := time.Now()
 	logger.Info("Starting ApplicationDefinition reconciliation")

@@ -27,6 +27,9 @@
 package common
 
 import (
+	"fmt"
+	"os"
+
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	policyv1 "k8s.io/api/policy/v1"
@@ -387,7 +390,32 @@ type ElasticsearchNodePoolSpec struct {
 	Storage   StorageSpec   `json:"storage"`
 }
 
+var Namespace string
+
+func getInClusterNamespace() (string, error) {
+	// Check whether the namespace file exists.
+	// If not, we are not running in cluster so can't guess the namespace.
+	if _, err := os.Stat(InClusterNamespacePath); os.IsNotExist(err) {
+		return "", fmt.Errorf("not running in-cluster, please check the Namespace")
+	} else if err != nil {
+		return "", fmt.Errorf("error checking namespace file: %w", err)
+	}
+
+	// Load the namespace file and return its content
+	namespace, err := os.ReadFile(InClusterNamespacePath)
+	if err != nil {
+		return "", fmt.Errorf("error reading namespace file: %w", err)
+	}
+	return string(namespace), nil
+}
+
 // init function registers schemes or helpers if needed (usually empty here).
 func init() {
 	// SchemeBuilder is typically used in CRD API group packages (api/v1, api/app/v1).
+	Namespace = "default"
+	if n, err := getInClusterNamespace(); err != nil {
+		panic(err)
+	} else {
+		Namespace = n
+	}
 }
