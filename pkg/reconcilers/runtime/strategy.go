@@ -47,16 +47,14 @@ import (
 // Ensure implementation complies
 var _ strategy.AppReconcileStrategy = &ReconcileStrategy{}
 
-// ReconcileStrategy orchestrates the reconciliation flow for the "gateway" application type.
 type ReconcileStrategy struct{}
 
 // Register the strategy
 func init() {
-	strategy.RegisterAppReconcileStrategy("gateway", &ReconcileStrategy{})
+	strategy.RegisterAppReconcileStrategy("runtime", &ReconcileStrategy{})
 }
 
 // Reconcile implements AppReconcileStrategy interface.
-// Defines the sequence of tasks to run for a Gateway component instance.
 // It utilizes the common Task Runner.
 func (s *ReconcileStrategy) Reconcile(
 	ctx context.Context,
@@ -70,9 +68,8 @@ func (s *ReconcileStrategy) Reconcile(
 	applyResults map[string]kubeutil.ApplyResult,
 	recorder record.EventRecorder,
 ) (bool, error) {
-	logger := log.FromContext(ctx).WithValues("component", componentStatus.Name, "reconcileStrategy", "Gateway")
+	logger := log.FromContext(ctx).WithValues("component", componentStatus.Name, "reconcileStrategy", "Runtime")
 
-	// --- Define the list of tasks for Gateway reconciliation workflow ---
 	taskList := []commonreconcilers.Task{
 		commonreconcilers.NewCheckK8sHealthTask(),
 	}
@@ -92,31 +89,31 @@ func (s *ReconcileStrategy) Reconcile(
 
 	// --- Handle overall result and error ---
 	if runErr != nil {
-		logger.Error(runErr, "Gateway reconciliation task execution failed")
+		logger.Error(runErr, "Runtime reconciliation task execution failed")
 		return false, runErr // Signal overall reconcile failure
 	}
 
 	if overallResult == commonreconcilers.TaskResultPending {
-		logger.V(1).Info("Gateway reconciliation task execution pending")
+		logger.V(1).Info("Runtime reconciliation task execution pending")
 		return true, nil // Signal needs requeue
 	}
 
-	logger.V(1).Info("Gateway reconciliation task execution complete")
+	logger.V(1).Info("Runtime reconciliation task execution complete")
 	return false, nil
 }
 
-// CheckAppHealth implements AppReconcileStrategy interface for Gateway.
-// Performs application-level health check for Gateway.
+// CheckAppHealth implements AppReconcileStrategy interface for Runtime.
+// Performs application-level health check for Runtime.
 func (s *ReconcileStrategy) CheckAppHealth(ctx context.Context, k8sClient client.Client,
 	scheme *runtime.Scheme, appDef *appv1.ApplicationDefinition,
 	appComp *appv1.ApplicationComponent, appSpecificConfig interface{}) (bool, string, error) {
 	logger := log.FromContext(ctx).WithValues("component", appComp.Name, "type", appComp.Type)
-	logger.V(1).Info("Executing Gateway application health check (Strategy CheckAppHealth method)")
+	logger.V(1).Info("Executing Runtime application health check (Strategy CheckAppHealth method)")
 
 	// Type assert the specific config
-	gatewayConfig, ok := appSpecificConfig.(*common.ResourceConfig)
-	if !ok || gatewayConfig == nil {
-		return false, "Invalid or missing Gateway config for health check", fmt.Errorf("invalid config type %T", appSpecificConfig)
+	runtimeConfig, ok := appSpecificConfig.(*common.RuntimeConfig)
+	if !ok || runtimeConfig == nil {
+		return false, "Invalid or missing Runtime config for health check", fmt.Errorf("invalid config type %T", appSpecificConfig)
 	}
 
 	// 1. Find the primary client service name (convention or config)
@@ -144,9 +141,9 @@ func (s *ReconcileStrategy) CheckAppHealth(ctx context.Context, k8sClient client
 	endpoints := &corev1.Endpoints{}
 	if err := k8sClient.Get(ctx, client.ObjectKey{Namespace: namespace, Name: serviceName}, endpoints); err != nil {
 		if apierrors.IsNotFound(err) { // Use apierrors alias
-			return false, "Gateway service endpoints not found", nil // No endpoints means no healthy pods serving
+			return false, "Runtime service endpoints not found", nil // No endpoints means no healthy pods serving
 		}
-		return false, fmt.Sprintf("Failed to get Gateway endpoints %s: %v", serviceName, err), err
+		return false, fmt.Sprintf("Failed to get Runtime endpoints %s: %v", serviceName, err), err
 	}
 
 	// Check if endpoints has ready addresses in subsets
@@ -167,10 +164,10 @@ func (s *ReconcileStrategy) CheckAppHealth(ctx context.Context, k8sClient client
 	}
 
 	if !hasReadyEndpoints {
-		return false, fmt.Sprintf("No ready endpoints found for Gateway service (%d/%d ready/total)", readyCount, totalCount), nil
+		return false, fmt.Sprintf("No ready endpoints found for Runtime service (%d/%d ready/total)", readyCount, totalCount), nil
 	}
 
-	return true, fmt.Sprintf("Gateway application service has ready endpoints (%d/%d ready/total)", readyCount, totalCount), nil
+	return true, fmt.Sprintf("Runtime application service has ready endpoints (%d/%d ready/total)", readyCount, totalCount), nil
 }
 
 // Helper to build map from object slice (duplicate from OS strategy, move to common util?)

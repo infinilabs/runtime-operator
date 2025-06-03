@@ -21,8 +21,6 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program. If not, see <http://www.gnu.org/licenses/>.
 
-// pkg/builders/gateway/builder.go
-// Contains the concrete builder strategy implementation for the Gateway component type.
 package runtime
 
 import (
@@ -50,55 +48,50 @@ const (
 	StatefulSetType = "StatefulSet"
 )
 
-// --- Gateway Builder Strategy Implementation ---
-
 // Ensure our builder implementation complies with the strategy interface
 var _ strategy.AppBuilderStrategy = &RuntimeBuilderStrategy{}
 
-// RuntimeBuilderStrategy is the concrete implementation of AppBuilderStrategy for the "gateway" type.
 type RuntimeBuilderStrategy struct{}
 
-// Define the expected GVK for Gateway's primary workload (assuming StatefulSet).
-var gatewayWorkloadGVK = schema.FromAPIVersionAndKind("apps/v1", StatefulSetType)
+var workloadGVK = schema.FromAPIVersionAndKind("apps/v1", StatefulSetType)
 
 // init registers this specific builder strategy with the central registry.
 // This function runs automatically when this package is imported.
 func init() {
-	// Register this builder using the component type name as the key ("gateway").
 	// 默认注册operator策略
 	strategy.RegisterAppBuilderStrategy("operator", &RuntimeBuilderStrategy{})
 }
 
 // GetWorkloadGVK implements the AppBuilderStrategy interface.
 func (b *RuntimeBuilderStrategy) GetWorkloadGVK() schema.GroupVersionKind {
-	return gatewayWorkloadGVK
+	return workloadGVK
 }
 
-func (b *RuntimeBuilderStrategy) verifyParameters(gatewayConfig *common.ResourceConfig, appComp *appv1.ApplicationComponent) error {
-	if gatewayConfig == nil {
-		return fmt.Errorf("gateway configuration (properties) is mandatory but missing or empty for component '%s'", appComp.Name)
+func (b *RuntimeBuilderStrategy) verifyParameters(runtimeConfig *common.RuntimeConfig, appComp *appv1.ApplicationComponent) error {
+	if runtimeConfig == nil {
+		return fmt.Errorf("runtime configuration (properties) is mandatory but missing or empty for component '%s'", appComp.Name)
 	}
 
-	// Perform validation of the specific ResourceConfig structure.
-	if gatewayConfig.Replicas == nil {
-		return fmt.Errorf("gateway config missing required 'replicas' for component '%s'", appComp.Name)
+	// Perform validation of the specific RuntimeConfig structure.
+	if runtimeConfig.Replicas == nil {
+		return fmt.Errorf("runtime config missing required 'replicas' for component '%s'", appComp.Name)
 	}
-	if gatewayConfig.Image == nil || (gatewayConfig.Image.Repository == "" && gatewayConfig.Image.Tag == "") {
-		return fmt.Errorf("gateway config is missing required 'image' for component '%s'", appComp.Name)
+	if runtimeConfig.Image == nil || (runtimeConfig.Image.Repository == "" && runtimeConfig.Image.Tag == "") {
+		return fmt.Errorf("runtime config is missing required 'image' for component '%s'", appComp.Name)
 	}
-	if gatewayConfig.Ports == nil || len(gatewayConfig.Ports) == 0 {
-		return fmt.Errorf("gateway config is missing required 'ports' configuration for component '%s'", appComp.Name)
+	if runtimeConfig.Ports == nil || len(runtimeConfig.Ports) == 0 {
+		return fmt.Errorf("runtime config is missing required 'ports' configuration for component '%s'", appComp.Name)
 	}
 	isStatefulSet := b.GetWorkloadGVK().Kind == StatefulSetType
 	if isStatefulSet {
-		if gatewayConfig.Storage == nil || !gatewayConfig.Storage.Enabled {
-			return fmt.Errorf("gateway workload is StatefulSet but Storage configuration is missing or disabled for component '%s'", appComp.Name)
+		if runtimeConfig.Storage == nil || !runtimeConfig.Storage.Enabled {
+			return fmt.Errorf("runtime workload is StatefulSet but Storage configuration is missing or disabled for component '%s'", appComp.Name)
 		}
-		if gatewayConfig.Storage.Enabled && gatewayConfig.Storage.Size == nil {
-			return fmt.Errorf("gateway Storage is enabled but 'size' is missing for component '%s'", appComp.Name)
+		if runtimeConfig.Storage.Enabled && runtimeConfig.Storage.Size == nil {
+			return fmt.Errorf("runtime Storage is enabled but 'size' is missing for component '%s'", appComp.Name)
 		}
-		if gatewayConfig.Storage.Enabled && gatewayConfig.Storage.MountPath == "" {
-			return fmt.Errorf("gateway Storage is enabled but 'mountPath' is missing for component '%s'", appComp.Name)
+		if runtimeConfig.Storage.Enabled && runtimeConfig.Storage.MountPath == "" {
+			return fmt.Errorf("runtime Storage is enabled but 'mountPath' is missing for component '%s'", appComp.Name)
 		}
 	}
 
@@ -109,21 +102,21 @@ func (b *RuntimeBuilderStrategy) verifyParameters(gatewayConfig *common.Resource
 func (b *RuntimeBuilderStrategy) BuildObjects(ctx context.Context, k8sClient client.Client,
 	scheme *runtime.Scheme, owner client.Object, appDef *appv1.ApplicationDefinition,
 	appComp *appv1.ApplicationComponent, appSpecificConfig interface{}) ([]client.Object, error) {
-	logger := log.FromContext(ctx).WithValues("component", appComp.Name, "type", appComp.Type, "builder", "Gateway")
+	logger := log.FromContext(ctx).WithValues("component", appComp.Name, "type", appComp.Type, "builder", "runtime")
 
 	// --- Unmarshal and Validate Specific Configuration ---
-	gatewayConfig, ok := appSpecificConfig.(*common.ResourceConfig)
+	runtimeConfig, ok := appSpecificConfig.(*common.RuntimeConfig)
 	if !ok {
-		return nil, fmt.Errorf("internal error: expected *common.ResourceConfig for component '%s' but received type %T", appComp.Name, appSpecificConfig)
+		return nil, fmt.Errorf("internal error: expected *common.RuntimeConfig for component '%s' but received type %T", appComp.Name, appSpecificConfig)
 	}
 
-	// Perform validation of the specific ResourceConfig structure.
-	if err := b.verifyParameters(gatewayConfig, appComp); err != nil {
-		return nil, fmt.Errorf("failed to validate ResourceConfig for component '%s': %w", appComp.Name, err)
+	// Perform validation of the specific RuntimeConfig structure.
+	if err := b.verifyParameters(runtimeConfig, appComp); err != nil {
+		return nil, fmt.Errorf("failed to validate RuntimeConfig for component '%s': %w", appComp.Name, err)
 	}
-	// TODO: Add more Gateway specific validation if needed
+	// TODO: Add more specific validation if needed
 
-	logger.V(1).Info("Validated ResourceConfig successfully")
+	logger.V(1).Info("Validated RuntimeConfig successfully")
 
 	// --- Build K8s Spec Parts & Objects ---
 	builtObjects := []client.Object{}
@@ -139,34 +132,33 @@ func (b *RuntimeBuilderStrategy) BuildObjects(ctx context.Context, k8sClient cli
 	logger.V(1).Info("Derived names and labels", "resourceName", resourceName, "commonLabels", commonLabels, "selectorLabels", selectorLabels)
 
 	// --- 1. Build Pod Template Spec ---
-	replicas := commonutil.GetInt32ValueOrDefault(gatewayConfig.Replicas, 1)
+	replicas := commonutil.GetInt32ValueOrDefault(runtimeConfig.Replicas, 1)
 
-	mainContainerSpec, err := buildGatewayMainContainerSpec(gatewayConfig, instanceName)
+	mainContainerSpec, err := buildRuntimeMainContainerSpec(runtimeConfig, instanceName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build Gateway main container spec for %s: %w", instanceName, err)
+		return nil, fmt.Errorf("failed to build runtime main container spec for %s: %w", instanceName, err)
 	}
 	mainContainer := *mainContainerSpec
 
-	initContainers := buildGatewayInitContainers(gatewayConfig, instanceName)
+	initContainers := buildRuntimeInitContainers(runtimeConfig, instanceName)
 	logger.V(1).Info("Built init containers", "count", len(initContainers))
 
-	volumes := buildGatewayVolumes(gatewayConfig, instanceName)
+	volumes := buildRuntimeVolumes(runtimeConfig, instanceName)
 	logger.V(1).Info("Built volumes", "count", len(volumes))
 
-	mainContainerVolumeMounts := buildGatewayVolumeMounts(gatewayConfig, instanceName)
+	mainContainerVolumeMounts := buildRuntimeVolumeMounts(runtimeConfig, instanceName)
 	logger.V(1).Info("Built main container volume mounts", "count", len(mainContainerVolumeMounts))
 	mainContainer.VolumeMounts = mainContainerVolumeMounts // Attach mounts
 
-	nodeSelector := gatewayConfig.NodeSelector
-	tolerations := gatewayConfig.Tolerations
-	affinity := builders.GetAffinityOrDefault(gatewayConfig.Affinity)
-	podSecurityContext := builders.GetPodSecurityContextOrDefault(gatewayConfig.PodSecurityContext)
-	serviceAccountConfig := gatewayConfig.ServiceAccount
+	nodeSelector := runtimeConfig.NodeSelector
+	tolerations := runtimeConfig.Tolerations
+	affinity := builders.GetAffinityOrDefault(runtimeConfig.Affinity)
+	podSecurityContext := builders.GetPodSecurityContextOrDefault(runtimeConfig.PodSecurityContext)
+	serviceAccountConfig := runtimeConfig.ServiceAccount
 	serviceAccountName := builders.DeriveServiceAccountName(instanceName, serviceAccountConfig)
 
 	podLabels := builders.MergeMaps(commonLabels, selectorLabels)
 	var podAnnotations map[string]string
-	// if gatewayConfig.PodAnnotations != nil { podAnnotations = gatewayConfig.PodAnnotations }
 
 	logger.V(1).Info("Building PodTemplateSpec")
 	builtPodTemplateSpec, err := builders.BuildPodTemplateSpec(
@@ -175,21 +167,21 @@ func (b *RuntimeBuilderStrategy) BuildObjects(ctx context.Context, k8sClient cli
 		podLabels, podAnnotations,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build final PodTemplateSpec for Gateway %s: %w", instanceName, err)
+		return nil, fmt.Errorf("failed to build final PodTemplateSpec for runtime %s: %w", instanceName, err)
 	}
 	logger.V(1).Info("Successfully built PodTemplateSpec")
 
-	// --- 2. Build primary workload resource (StatefulSet for Gateway) ---
+	// --- 2. Build primary workload resource (StatefulSet) ---
 	stsMetadata := builders.BuildObjectMeta(resourceName, namespace, commonLabels, nil)
 
-	vctList, err := builders.BuildVolumeClaimTemplates(gatewayConfig.Storage, commonLabels)
+	vctList, err := builders.BuildVolumeClaimTemplates(runtimeConfig.Storage, commonLabels)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build VCTs for Gateway %s: %w", instanceName, err)
+		return nil, fmt.Errorf("failed to build VCTs for Runtime %s: %w", instanceName, err)
 	}
 	logger.V(1).Info("Built VolumeClaimTemplates", "count", len(vctList))
 
-	stsUpdateStrategy := builders.GetStatefulSetUpdateStrategyOrDefault(gatewayConfig.StatefulSetUpdateStrategy)
-	stsPodManagementPolicy := builders.GetStatefulSetPodManagementPolicyOrDefault(gatewayConfig.PodManagementPolicy)
+	stsUpdateStrategy := builders.GetStatefulSetUpdateStrategyOrDefault(runtimeConfig.StatefulSetUpdateStrategy)
+	stsPodManagementPolicy := builders.GetStatefulSetPodManagementPolicyOrDefault(runtimeConfig.PodManagementPolicy)
 
 	headlessServiceName := builders.DeriveResourceName(instanceName) + "-headless"
 	// Optional override check...
@@ -213,21 +205,21 @@ func (b *RuntimeBuilderStrategy) BuildObjects(ctx context.Context, k8sClient cli
 
 	// --- 3. Build Headless Service ---
 	headlessServiceMetadata := builders.BuildObjectMeta(headlessServiceName, namespace, commonLabels, nil)
-	headlessServicePorts := builders.BuildServicePorts(gatewayConfig.Ports)
+	headlessServicePorts := builders.BuildServicePorts(runtimeConfig.Ports)
 	logger.V(1).Info("Building Headless Service object", "name", headlessServiceName)
 	headlessService := builders.BuildHeadlessService(headlessServiceMetadata, selectorLabels, headlessServicePorts)
 	builtObjects = append(builtObjects, headlessService)
 	logger.V(1).Info("Successfully built Headless Service object")
 
 	// --- 4. Build Client/Transport Service (Optional) ---
-	if gatewayConfig.Service != nil && ShouldBuildClientService(gatewayConfig.Service) { // Use local helper
+	if runtimeConfig.Service != nil && ShouldBuildClientService(runtimeConfig.Service) { // Use local helper
 		regularServiceName := resourceName
-		regularServiceMetadata := builders.BuildObjectMeta(regularServiceName, namespace, commonLabels, gatewayConfig.Service.Annotations)
-		clientServicePorts := builders.BuildServicePorts(gatewayConfig.Service.Ports)
+		regularServiceMetadata := builders.BuildObjectMeta(regularServiceName, namespace, commonLabels, runtimeConfig.Service.Annotations)
+		clientServicePorts := builders.BuildServicePorts(runtimeConfig.Service.Ports)
 
 		var serviceType corev1.ServiceType = corev1.ServiceTypeClusterIP // Default
-		if gatewayConfig.Service.Type != nil {
-			serviceType = *gatewayConfig.Service.Type
+		if runtimeConfig.Service.Type != nil {
+			serviceType = *runtimeConfig.Service.Type
 		}
 
 		clientServiceSpec := corev1.ServiceSpec{
@@ -246,10 +238,10 @@ func (b *RuntimeBuilderStrategy) BuildObjects(ctx context.Context, k8sClient cli
 	}
 
 	// --- 5. Build ConfigMaps/Secrets from Config File Data ---
-	if gatewayConfig.ConfigFiles != nil && len(gatewayConfig.ConfigFiles) > 0 {
+	if runtimeConfig.ConfigFiles != nil && len(runtimeConfig.ConfigFiles) > 0 {
 		configMapResourceName := resourceName + "-config"
 		logger.V(1).Info("Building ConfigMap object", "name", configMapResourceName)
-		cmObjects, err := builders.BuildConfigMapsFromAppData(gatewayConfig.ConfigFiles, configMapResourceName, namespace, commonLabels)
+		cmObjects, err := builders.BuildConfigMapsFromAppData(runtimeConfig.ConfigFiles, configMapResourceName, namespace, commonLabels)
 		if err != nil {
 			return nil, fmt.Errorf("failed to build ConfigMaps from ConfigFiles for %s: %w", instanceName, err)
 		}
@@ -271,11 +263,11 @@ func (b *RuntimeBuilderStrategy) BuildObjects(ctx context.Context, k8sClient cli
 	}
 
 	// --- 7. Build PersistentVolumeClaim (for Deployment shared PVC) ---
-	isStatefulSet := (gatewayWorkloadGVK.Kind == StatefulSetType)
-	if !isStatefulSet && gatewayConfig.Persistence != nil && gatewayConfig.Persistence.Enabled {
+	isStatefulSet := workloadGVK.Kind == StatefulSetType
+	if !isStatefulSet && runtimeConfig.Persistence != nil && runtimeConfig.Persistence.Enabled {
 		pvcName := builders.DeriveResourceName(instanceName) + "-pvc"
 		logger.V(1).Info("Building shared PersistentVolumeClaim object", "name", pvcName)
-		pvcObject, err := builders.BuildSharedPVCPVC(gatewayConfig.Persistence, instanceName, namespace, commonLabels)
+		pvcObject, err := builders.BuildSharedPVCPVC(runtimeConfig.Persistence, instanceName, namespace, commonLabels)
 		if err != nil {
 			return nil, fmt.Errorf("failed to build shared PVC for %s: %w", instanceName, err)
 		}
@@ -288,36 +280,36 @@ func (b *RuntimeBuilderStrategy) BuildObjects(ctx context.Context, k8sClient cli
 		}
 	}
 
-	logger.Info("Finished building all Kubernetes objects for Gateway", "count", len(builtObjects))
+	logger.Info("Finished building all Kubernetes objects for Runtime", "count", len(builtObjects))
 	return builtObjects, nil // Success!
 }
 
-// buildGatewayMainContainerSpec builds the corev1.Container spec for the main gateway app.
-func buildGatewayMainContainerSpec(gatewayConfig *common.ResourceConfig, instanceName string) (*corev1.Container, error) {
-	logger := log.Log.WithName("gateway-container-builder")
+// buildRuntimeMainContainerSpec builds the corev1.Container spec for the main Runtime app.
+func buildRuntimeMainContainerSpec(runtimeConfig *common.RuntimeConfig, instanceName string) (*corev1.Container, error) {
+	logger := log.Log.WithName("runtime-container-builder")
 
-	imageName := builders.BuildImageName(gatewayConfig.Image.Repository, gatewayConfig.Image.Tag)
-	imagePullPolicy := builders.GetImagePullPolicy(gatewayConfig.Image.PullPolicy, gatewayConfig.Image.Tag)
-	k8sPorts := builders.BuildContainerPorts(gatewayConfig.Ports)
-	k8sResources := builders.BuildK8sResourceRequirements(gatewayConfig.Resources)
+	imageName := builders.BuildImageName(runtimeConfig.Image.Repository, runtimeConfig.Image.Tag)
+	imagePullPolicy := builders.GetImagePullPolicy(runtimeConfig.Image.PullPolicy, runtimeConfig.Image.Tag)
+	k8sPorts := builders.BuildContainerPorts(runtimeConfig.Ports)
+	k8sResources := builders.BuildK8sResourceRequirements(runtimeConfig.Resources)
 
 	var livenessProbe, readinessProbe, startupProbe *corev1.Probe
-	if gatewayConfig.Probes != nil {
-		livenessProbe = builders.BuildProbe(gatewayConfig.Probes.Liveness)
-		readinessProbe = builders.BuildProbe(gatewayConfig.Probes.Readiness)
-		startupProbe = builders.BuildProbe(gatewayConfig.Probes.Startup)
+	if runtimeConfig.Probes != nil {
+		livenessProbe = builders.BuildProbe(runtimeConfig.Probes.Liveness)
+		readinessProbe = builders.BuildProbe(runtimeConfig.Probes.Readiness)
+		startupProbe = builders.BuildProbe(runtimeConfig.Probes.Startup)
 	}
-	containerSecurityContext := builders.GetContainerSecurityContextOrDefault(gatewayConfig.ContainerSecurityContext)
+	containerSecurityContext := builders.GetContainerSecurityContextOrDefault(runtimeConfig.ContainerSecurityContext)
 
 	container := corev1.Container{
 		Name:            builders.DeriveContainerName(instanceName),
 		Image:           imageName,
 		ImagePullPolicy: imagePullPolicy,
-		Command:         gatewayConfig.Command, // Add if defined in common.ResourceConfig
-		Args:            gatewayConfig.Args,    // Add if defined in common.ResourceConfig
+		Command:         runtimeConfig.Command, // Add if defined in common.RuntimeConfig
+		Args:            runtimeConfig.Args,    // Add if defined in common.RuntimeConfig
 		Ports:           k8sPorts,
-		Env:             gatewayConfig.Env,
-		EnvFrom:         gatewayConfig.EnvFrom,
+		Env:             runtimeConfig.Env,
+		EnvFrom:         runtimeConfig.EnvFrom,
 		Resources:       k8sResources,
 		LivenessProbe:   livenessProbe,
 		ReadinessProbe:  readinessProbe,
@@ -329,40 +321,40 @@ func buildGatewayMainContainerSpec(gatewayConfig *common.ResourceConfig, instanc
 	return &container, nil
 }
 
-// buildGatewayInitContainers builds necessary init containers for the gateway.
-func buildGatewayInitContainers(gatewayConfig *common.ResourceConfig, instanceName string) []corev1.Container {
+// buildRuntimeInitContainers builds necessary init containers for the Runtime.
+func buildRuntimeInitContainers(runtimeConfig *common.RuntimeConfig, instanceName string) []corev1.Container {
 	// Add custom init containers if defined
-	if gatewayConfig.InitContainer == nil {
+	if runtimeConfig.InitContainer == nil {
 		return nil
 	}
 
 	initContainers := []corev1.Container{}
-	logger := log.Log.WithName("gateway-init-builder").WithValues("instance", instanceName)
-	isStatefulSet := (gatewayWorkloadGVK.Kind == StatefulSetType)
+	logger := log.Log.WithName("runtime-init-builder").WithValues("instance", instanceName)
+	isStatefulSet := (workloadGVK.Kind == StatefulSetType)
 
 	var persistentMountPath string
 	var persistentVolumeName string
 	ownerUID, ownerGID := int64(1000), int64(1000) // Defaults
 
-	if isStatefulSet && gatewayConfig.Storage != nil && gatewayConfig.Storage.Enabled {
-		persistentMountPath = gatewayConfig.Storage.MountPath
-		persistentVolumeName = commonutil.GetStringValueOrDefault(&gatewayConfig.Storage.VolumeClaimTemplateName, "data")
+	if isStatefulSet && runtimeConfig.Storage != nil && runtimeConfig.Storage.Enabled {
+		persistentMountPath = runtimeConfig.Storage.MountPath
+		persistentVolumeName = commonutil.GetStringValueOrDefault(&runtimeConfig.Storage.VolumeClaimTemplateName, "data")
 		logger.V(1).Info("StatefulSet storage detected", "mountPath", persistentMountPath, "volumeName(VCT)", persistentVolumeName)
-	} else if !isStatefulSet && gatewayConfig.Persistence != nil && gatewayConfig.Persistence.Enabled {
-		persistentMountPath = gatewayConfig.Persistence.MountPath
-		persistentVolumeName = commonutil.GetStringValueOrDefault(&gatewayConfig.Persistence.VolumeName, builders.DeriveResourceName(instanceName)+"-pvc-vol")
+	} else if !isStatefulSet && runtimeConfig.Persistence != nil && runtimeConfig.Persistence.Enabled {
+		persistentMountPath = runtimeConfig.Persistence.MountPath
+		persistentVolumeName = commonutil.GetStringValueOrDefault(&runtimeConfig.Persistence.VolumeName, builders.DeriveResourceName(instanceName)+"-pvc-vol")
 		logger.V(1).Info("Deployment persistence detected", "mountPath", persistentMountPath, "volumeName", persistentVolumeName)
 	}
 
-	if gatewayConfig.PodSecurityContext != nil && gatewayConfig.PodSecurityContext.FSGroup != nil {
-		ownerGID = *gatewayConfig.PodSecurityContext.FSGroup
+	if runtimeConfig.PodSecurityContext != nil && runtimeConfig.PodSecurityContext.FSGroup != nil {
+		ownerGID = *runtimeConfig.PodSecurityContext.FSGroup
 	}
-	if gatewayConfig.ContainerSecurityContext != nil {
-		if gatewayConfig.ContainerSecurityContext.RunAsUser != nil {
-			ownerUID = *gatewayConfig.ContainerSecurityContext.RunAsUser
+	if runtimeConfig.ContainerSecurityContext != nil {
+		if runtimeConfig.ContainerSecurityContext.RunAsUser != nil {
+			ownerUID = *runtimeConfig.ContainerSecurityContext.RunAsUser
 		}
-		if gatewayConfig.ContainerSecurityContext.RunAsGroup != nil {
-			ownerGID = *gatewayConfig.ContainerSecurityContext.RunAsGroup
+		if runtimeConfig.ContainerSecurityContext.RunAsGroup != nil {
+			ownerGID = *runtimeConfig.ContainerSecurityContext.RunAsGroup
 		}
 	}
 
@@ -379,22 +371,22 @@ func buildGatewayInitContainers(gatewayConfig *common.ResourceConfig, instanceNa
 	return initContainers
 }
 
-// buildGatewayVolumes builds the PodSpec.Volumes list (excluding VCTs).
-func buildGatewayVolumes(gatewayConfig *common.ResourceConfig, instanceName string) []corev1.Volume {
+// buildRuntimeVolumes builds the PodSpec.Volumes list (excluding VCTs).
+func buildRuntimeVolumes(runtimeConfig *common.RuntimeConfig, instanceName string) []corev1.Volume {
 	volumes := []corev1.Volume{}
-	logger := log.Log.WithName("gateway-volume-builder").WithValues("instance", instanceName)
-	isStatefulSet := (gatewayWorkloadGVK.Kind == StatefulSetType)
+	logger := log.Log.WithName("runtime-volume-builder").WithValues("instance", instanceName)
+	isStatefulSet := (workloadGVK.Kind == StatefulSetType)
 
-	cmVolumes := builders.BuildVolumesFromConfigMaps(gatewayConfig.ConfigMounts)
+	cmVolumes := builders.BuildVolumesFromConfigMaps(runtimeConfig.ConfigMounts)
 	volumes = append(volumes, cmVolumes...)
 	logger.V(1).Info("Built volumes from ConfigMounts", "count", len(cmVolumes))
 
-	secretVolumes := builders.BuildVolumesFromSecrets(gatewayConfig.SecretMounts)
+	secretVolumes := builders.BuildVolumesFromSecrets(runtimeConfig.SecretMounts)
 	volumes = append(volumes, secretVolumes...)
 	logger.V(1).Info("Built volumes from SecretMounts", "count", len(secretVolumes))
 
-	if !isStatefulSet && gatewayConfig.Persistence != nil && gatewayConfig.Persistence.Enabled {
-		pvcVolumeName := commonutil.GetStringValueOrDefault(&gatewayConfig.Persistence.VolumeName, builders.DeriveResourceName(instanceName)+"-pvc-vol")
+	if !isStatefulSet && runtimeConfig.Persistence != nil && runtimeConfig.Persistence.Enabled {
+		pvcVolumeName := commonutil.GetStringValueOrDefault(&runtimeConfig.Persistence.VolumeName, builders.DeriveResourceName(instanceName)+"-pvc-vol")
 		pvcResourceName := builders.DeriveResourceName(instanceName) + "-pvc"
 		logger.V(1).Info("Adding volume definition for shared PVC", "volumeName", pvcVolumeName, "pvcName", pvcResourceName)
 		volumes = append(volumes, corev1.Volume{
@@ -411,29 +403,29 @@ func buildGatewayVolumes(gatewayConfig *common.ResourceConfig, instanceName stri
 	return volumes
 }
 
-// buildGatewayVolumeMounts builds the main container's VolumeMounts list.
-func buildGatewayVolumeMounts(gatewayConfig *common.ResourceConfig, instanceName string) []corev1.VolumeMount {
+// buildRuntimeVolumeMounts builds the main container's VolumeMounts list.
+func buildRuntimeVolumeMounts(runtimeConfig *common.RuntimeConfig, instanceName string) []corev1.VolumeMount {
 	allVolumeMounts := []corev1.VolumeMount{}
-	logger := log.Log.WithName("gateway-mount-builder").WithValues("instance", instanceName)
-	isStatefulSet := (gatewayWorkloadGVK.Kind == StatefulSetType)
+	logger := log.Log.WithName("runtime-mount-builder").WithValues("instance", instanceName)
+	isStatefulSet := (workloadGVK.Kind == StatefulSetType)
 
-	cmMounts := builders.BuildVolumeMountsFromConfigMaps(gatewayConfig.ConfigMounts)
+	cmMounts := builders.BuildVolumeMountsFromConfigMaps(runtimeConfig.ConfigMounts)
 	allVolumeMounts = append(allVolumeMounts, cmMounts...)
 	logger.V(1).Info("Built volume mounts from ConfigMounts", "count", len(cmMounts))
 
-	secretMounts := builders.BuildVolumeMountsFromSecrets(gatewayConfig.SecretMounts)
+	secretMounts := builders.BuildVolumeMountsFromSecrets(runtimeConfig.SecretMounts)
 	allVolumeMounts = append(allVolumeMounts, secretMounts...)
 	logger.V(1).Info("Built volume mounts from SecretMounts", "count", len(secretMounts))
 
-	if !isStatefulSet && gatewayConfig.Persistence != nil && gatewayConfig.Persistence.Enabled {
-		persistenceVolumeName := commonutil.GetStringValueOrDefault(&gatewayConfig.Persistence.VolumeName, builders.DeriveResourceName(instanceName)+"-pvc-vol")
-		persistentMounts := builders.BuildPersistentVolumeMounts(gatewayConfig.Persistence, persistenceVolumeName)
+	if !isStatefulSet && runtimeConfig.Persistence != nil && runtimeConfig.Persistence.Enabled {
+		persistenceVolumeName := commonutil.GetStringValueOrDefault(&runtimeConfig.Persistence.VolumeName, builders.DeriveResourceName(instanceName)+"-pvc-vol")
+		persistentMounts := builders.BuildPersistentVolumeMounts(runtimeConfig.Persistence, persistenceVolumeName)
 		allVolumeMounts = append(allVolumeMounts, persistentMounts...)
 		logger.V(1).Info("Built volume mounts from Persistence", "count", len(persistentMounts))
 	}
 
-	if isStatefulSet && gatewayConfig.Storage != nil && gatewayConfig.Storage.Enabled {
-		storageMounts := builders.BuildVolumeMountsFromStorage(gatewayConfig.Storage)
+	if isStatefulSet && runtimeConfig.Storage != nil && runtimeConfig.Storage.Enabled {
+		storageMounts := builders.BuildVolumeMountsFromStorage(runtimeConfig.Storage)
 		allVolumeMounts = append(allVolumeMounts, storageMounts...)
 		logger.V(1).Info("Built volume mounts from Storage", "count", len(storageMounts))
 	}

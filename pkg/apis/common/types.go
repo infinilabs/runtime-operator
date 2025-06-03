@@ -27,6 +27,9 @@
 package common
 
 import (
+	"fmt"
+	"os"
+
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	policyv1 "k8s.io/api/policy/v1"
@@ -85,7 +88,7 @@ type ProbesConfig struct {
 }
 
 // ServiceSpecPart is a helper struct grouping common Service configuration fields.
-// Used within specific component configs like ResourceConfig.
+// Used within specific component configs like RuntimeConfig.
 type ServiceSpecPart struct {
 	// Type specifies the Kubernetes Service type (ClusterIP, NodePort, LoadBalancer).
 	// Defaults to ClusterIP if not specified.
@@ -215,10 +218,8 @@ type AppConfigData map[string]string
 // --- Application Specific Configuration Structures ---
 // Define the STRUCTURE of the config provided in ApplicationComponent.Properties for each type.
 
-// ResourceConfig defines the expected structure within ApplicationComponent.Properties when Type is "gateway".
-// ResourceConfig defines the expected structure within ApplicationComponent.Properties when Type is "gateway".
 // It includes core workload settings and potentially overrides for common components.
-type ResourceConfig struct {
+type RuntimeConfig struct {
 	// --- Core Workload Settings ---
 
 	// Replicas defines the number of desired pods.
@@ -234,7 +235,7 @@ type ResourceConfig struct {
 	Command []string   `json:"command,omitempty" protobuf:"bytes,3,rep,name=command"`
 	Args    []string   `json:"args,omitempty" protobuf:"bytes,4,rep,name=args"`
 
-	// Ports defines the network ports exposed by the gateway container.
+	// Ports defines the network ports exposed by the container.
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:MinItems=1
 	// +optional
@@ -299,7 +300,7 @@ type ResourceConfig struct {
 
 	// --- Service Exposure ---
 
-	// Service defines how to expose the Gateway pods via a Kubernetes Service.
+	// Service defines how to expose the pods via a Kubernetes Service.
 	// +optional
 	Service *ServiceSpecPart `json:"service,omitempty"` // Use the helper struct defined below
 
@@ -333,8 +334,6 @@ type ResourceConfig struct {
 	// +optional
 	VolumeMounts []corev1.VolumeMount `json:"volumeMounts,omitempty"`
 
-	// --- StatefulSet Specific Overrides (if Gateway is a StatefulSet) ---
-
 	// StatefulSetUpdateStrategy defines the update strategy for the StatefulSet.
 	// +optional
 	StatefulSetUpdateStrategy *StatefulSetUpdateStrategyPart `json:"statefulSetUpdateStrategy,omitempty"` // Likely *appsv1.StatefulSetUpdateStrategy
@@ -345,17 +344,9 @@ type ResourceConfig struct {
 
 	// --- Pod Disruption Budget (Optional) ---
 
-	// PodDisruptionBudget defines the PDB settings for the gateway deployment/statefulset.
+	// PodDisruptionBudget defines the PDB settings for the deployment/statefulset.
 	// +optional
 	PodDisruptionBudget *PodDisruptionBudgetSpecPart `json:"podDisruptionBudget,omitempty"` // Likely *policyv1.PodDisruptionBudgetSpec
-
-	// --- Other Gateway specific parameters ---
-	// Add any other flags or configurations specific to your Gateway application here.
-	// Example:
-	// +optional
-	// SomeGatewayFeatureFlag *bool `json:"someGatewayFeatureFlag,omitempty"`
-	// +optional
-	// LogLevel *string `json:"logLevel,omitempty"`
 }
 
 // OpensearchClusterConfig defines parameters specific to OpenSearch clusters.
@@ -399,7 +390,32 @@ type ElasticsearchNodePoolSpec struct {
 	Storage   StorageSpec   `json:"storage"`
 }
 
+var Namespace string
+
+func getInClusterNamespace() (string, error) {
+	// Check whether the namespace file exists.
+	// If not, we are not running in cluster so can't guess the namespace.
+	if _, err := os.Stat(InClusterNamespacePath); os.IsNotExist(err) {
+		return "", fmt.Errorf("not running in-cluster, please check the Namespace")
+	} else if err != nil {
+		return "", fmt.Errorf("error checking namespace file: %w", err)
+	}
+
+	// Load the namespace file and return its content
+	namespace, err := os.ReadFile(InClusterNamespacePath)
+	if err != nil {
+		return "", fmt.Errorf("error reading namespace file: %w", err)
+	}
+	return string(namespace), nil
+}
+
 // init function registers schemes or helpers if needed (usually empty here).
 func init() {
 	// SchemeBuilder is typically used in CRD API group packages (api/v1, api/app/v1).
+	Namespace = "default"
+	if n, err := getInClusterNamespace(); err != nil {
+		panic(err)
+	} else {
+		Namespace = n
+	}
 }

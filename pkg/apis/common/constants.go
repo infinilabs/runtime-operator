@@ -26,9 +26,10 @@ package common
 
 // Constants for standard labels and operator identification.
 const (
-	AppNameLabel      = "infini.cloud/application-name"   // Label for ApplicationDefinition name
-	CompNameLabel     = "infini.cloud/component-name"     // Label for ComponentDefinition name (type)
-	CompInstanceLabel = "infini.cloud/component-instance" // Label for ApplicationComponent name (instance)
-	ManagedByLabel    = "app.kubernetes.io/managed-by"    // Standard Kubernetes label
-	OperatorName      = "runtime-operator"                // Name of this operator
+	AppNameLabel           = "infini.cloud/application-name"   // Label for ApplicationDefinition name
+	CompNameLabel          = "infini.cloud/component-name"     // Label for ComponentDefinition name (type)
+	CompInstanceLabel      = "infini.cloud/component-instance" // Label for ApplicationComponent name (instance)
+	ManagedByLabel         = "app.kubernetes.io/managed-by"    // Standard Kubernetes label
+	OperatorName           = "runtime-operator"                // Name of this operator
+	InClusterNamespacePath = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
 )
