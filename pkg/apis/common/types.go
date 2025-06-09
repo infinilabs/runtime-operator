@@ -33,6 +33,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	policyv1 "k8s.io/api/policy/v1"
+	policyv1beta1 "k8s.io/api/policy/v1beta1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
@@ -210,7 +211,13 @@ type StatefulSetUpdateStrategyPart = appsv1.StatefulSetUpdateStrategy
 type PodManagementPolicyTypePart = appsv1.PodManagementPolicyType
 
 // PodDisruptionBudgetSpecPart uses policyv1.PodDisruptionBudgetSpec directly.
-type PodDisruptionBudgetSpecPart = policyv1.PodDisruptionBudgetSpec
+// type PodDisruptionBudgetSpecPart = policyv1.PodDisruptionBudgetSpec
+
+// 双版本类型定义
+type (
+	PodDisruptionBudgetSpecV1      = policyv1.PodDisruptionBudgetSpec
+	PodDisruptionBudgetSpecV1beta1 = policyv1beta1.PodDisruptionBudgetSpec
+)
 
 // AppConfigData holds configuration data as key-value strings (filename -> content).
 type AppConfigData map[string]string
@@ -346,48 +353,8 @@ type RuntimeConfig struct {
 
 	// PodDisruptionBudget defines the PDB settings for the deployment/statefulset.
 	// +optional
-	PodDisruptionBudget *PodDisruptionBudgetSpecPart `json:"podDisruptionBudget,omitempty"` // Likely *policyv1.PodDisruptionBudgetSpec
-}
-
-// OpensearchClusterConfig defines parameters specific to OpenSearch clusters.
-// (Structure defined earlier, keep it here for reference/use by other components)
-type OpensearchClusterConfig struct {
-	// +kubebuilder:validation:Required
-	Version *string `json:"version"`
-	// +kubebuilder:validation:Required
-	Image ImageSpec `json:"image"`
-	// +kubebuilder:validation:Required
-	NodePools []OpensearchNodePoolSpec `json:"nodePools"`
-	// ... other fields as defined before ...
-}
-
-// OpensearchNodePoolSpec defines configurations for a specific pool of nodes in an OpenSearch cluster.
-type OpensearchNodePoolSpec struct {
-	Name      string        `json:"name"`
-	Replicas  *int32        `json:"replicas"`
-	Roles     []string      `json:"roles"`
-	Resources ResourcesSpec `json:"resources"`
-	Storage   StorageSpec   `json:"storage"`
-}
-
-// ElasticsearchClusterConfig defines parameters specific to Elasticsearch clusters.
-// (Structure defined earlier, keep it here for reference/use by other components)
-type ElasticsearchClusterConfig struct {
-	// +kubebuilder:validation:Required
-	Version *string `json:"version"`
-	// +kubebuilder:validation:Required
-	Image ImageSpec `json:"image"`
-	// +kubebuilder:validation:Required
-	NodePools []ElasticsearchNodePoolSpec `json:"nodePools"`
-}
-
-// OpensearchNodePoolSpec defines configurations for a specific pool of nodes in an OpenSearch cluster.
-type ElasticsearchNodePoolSpec struct {
-	Name      string        `json:"name"`
-	Replicas  *int32        `json:"replicas"`
-	Roles     []string      `json:"roles"`
-	Resources ResourcesSpec `json:"resources"`
-	Storage   StorageSpec   `json:"storage"`
+	PodDisruptionBudgetBeta1 *PodDisruptionBudgetSpecV1beta1 `json:"podDisruptionBudgetBeta1,omitempty"`
+	PodDisruptionBudget      *PodDisruptionBudgetSpecV1      `json:"podDisruptionBudget,omitempty"`
 }
 
 var Namespace string
@@ -414,7 +381,7 @@ func init() {
 	// SchemeBuilder is typically used in CRD API group packages (api/v1, api/app/v1).
 	Namespace = "default"
 	if n, err := getInClusterNamespace(); err != nil {
-		panic(err)
+		// panic(err)
 	} else {
 		Namespace = n
 	}
