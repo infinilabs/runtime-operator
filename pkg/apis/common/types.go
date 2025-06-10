@@ -381,7 +381,7 @@ func init() {
 	// SchemeBuilder is typically used in CRD API group packages (api/v1, api/app/v1).
 	Namespace = "default"
 	if n, err := getInClusterNamespace(); err != nil {
-		// panic(err)
+		panic(err)
 	} else {
 		Namespace = n
 	}

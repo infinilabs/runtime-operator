@@ -75,19 +75,38 @@ func ApplyObject(ctx context.Context, k8sClient client.Client, obj client.Object
 
 	// Prepare the patch data using client.Apply.
 	// Pass the object itself which contains the desired state.
-	patchData := client.Apply // This signifies the patch *content* implies Apply strategy
+	// Prepare the patch data using client.Apply.
+	// Pass the object itself which contains the desired state.
+	patchData := client.Merge // This signifies the patch *content* implies Apply strategy
 
 	// Prepare the patch options.
 	// FieldOwner: Identifies who is managing the fields in this object. Should be unique (e.g., your operator name).
 	// Force: Needed to acquire ownership of fields currently managed by others (e.g., if a Helm chart or manual edit previously set fields).
 	patchOpts := []client.PatchOption{
 		client.FieldOwner(fieldManager),
-		client.ForceOwnership,
+		// client.ForceOwnership,
+	}
+
+	err := k8sClient.Get(ctx, client.ObjectKeyFromObject(obj), obj)
+	if err != nil {
+		if client.IgnoreNotFound(err) != nil {
+			logger.Error(err, "Failed to get resource")
+			return ApplyResult{Error: fmt.Errorf("failed to get resource: %w", err)}
+		}
+		// If the object does not exist, we will create it.
+		if err := k8sClient.Create(ctx, obj); err != nil {
+			logger.Error(err, "Failed to create resource")
+			return ApplyResult{Error: fmt.Errorf("failed to create resource: %w", err)}
+		}
+
+		logger.V(1).Info("Resource created successfully")
+
+		return ApplyResult{Operation: controllerutil.OperationResultCreated, Error: nil}
 	}
 
 	// Call the Patch API method with the object and apply options.
 	// This is the core Server-Side Apply call.
-	err := k8sClient.Patch(ctx, obj, patchData, patchOpts...)
+	err = k8sClient.Patch(ctx, obj, patchData, patchOpts...)
 	if err != nil {
 		// Wrap the error for more context if desired
 		// Example: fmt.Errorf("failed to apply %s %s/%s: %w", gvk.Kind, objKey.Namespace, objKey.Name, err)
