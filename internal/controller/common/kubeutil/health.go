@@ -28,10 +28,10 @@ import (
 	"context"
 	"fmt"
 
-	// For string comparison
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	policyv1 "k8s.io/api/policy/v1" // If checking PDB status
+	policyv1 "k8s.io/api/policy/v1"
+	policyv1beta1 "k8s.io/api/policy/v1beta1"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -90,6 +90,9 @@ func CheckHealth(ctx context.Context, k8sClient client.Client, scheme *runtime.S
 		return checkPVCHealth(resource)
 	case *policyv1.PodDisruptionBudget:
 		return checkPdbHealth(resource)
+	case *policyv1beta1.PodDisruptionBudget:
+		// If using policy/v1beta1, handle it similarly to policy/v1
+		return checkPdbHealthBeta1(resource)
 	case *corev1.ConfigMap, *corev1.Secret, *corev1.ServiceAccount:
 		// These types are generally considered healthy if they exist.
 		return true, fmt.Sprintf("%s exists", kind), nil
@@ -297,6 +300,24 @@ func checkPVCHealth(pvc *corev1.PersistentVolumeClaim) (bool, string, error) { /
 }
 
 func checkPdbHealth(pdb *policyv1.PodDisruptionBudget) (bool, string, error) {
+	if pdb.Status.ObservedGeneration < pdb.Generation {
+		return false, fmt.Sprintf("PDB sync in progress (gen %d < desired %d)", pdb.Status.ObservedGeneration, pdb.Generation), nil
+	}
+	// Check if current healthy pods meet desired healthy count
+	if pdb.Status.CurrentHealthy >= pdb.Status.DesiredHealthy {
+		// Additional check: Are disruptions allowed based on current state?
+		if pdb.Status.DisruptionsAllowed > 0 {
+			return true, fmt.Sprintf("PDB allows disruptions (%d allowed, %d/%d healthy)", pdb.Status.DisruptionsAllowed, pdb.Status.CurrentHealthy, pdb.Status.DesiredHealthy), nil
+		} else {
+			// Healthy count met, but disruptions NOT allowed (e.g., due to MaxUnavailable)
+			return true, fmt.Sprintf("PDB healthy (%d/%d), but no disruptions allowed", pdb.Status.CurrentHealthy, pdb.Status.DesiredHealthy), nil
+		}
+	}
+	// Not enough healthy pods according to PDB spec
+	return false, fmt.Sprintf("PDB not healthy (%d/%d healthy, %d disruptions allowed)", pdb.Status.CurrentHealthy, pdb.Status.DesiredHealthy, pdb.Status.DisruptionsAllowed), nil
+}
+
+func checkPdbHealthBeta1(pdb *policyv1beta1.PodDisruptionBudget) (bool, string, error) {
 	if pdb.Status.ObservedGeneration < pdb.Generation {
 		return false, fmt.Sprintf("PDB sync in progress (gen %d < desired %d)", pdb.Status.ObservedGeneration, pdb.Generation), nil
 	}

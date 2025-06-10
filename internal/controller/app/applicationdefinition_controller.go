@@ -34,6 +34,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	policyv1 "k8s.io/api/policy/v1"
+	policyv1beta1 "k8s.io/api/policy/v1beta1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -850,8 +851,14 @@ func (r *ApplicationDefinitionReconciler) SetupWithManager(mgr ctrl.Manager) err
 		&corev1.ConfigMap{},
 		&corev1.Secret{},
 		&corev1.ServiceAccount{},
-		&policyv1.PodDisruptionBudget{},
+		// &policyv1.PodDisruptionBudget{},
 		// &networkingv1.Ingress{}, // Add if managed
+	}
+
+	if commonutil.IsV1Supported {
+		ownedTypes = append(ownedTypes, &policyv1.PodDisruptionBudget{}) // 使用 policy/v1
+	} else {
+		ownedTypes = append(ownedTypes, &policyv1beta1.PodDisruptionBudget{}) // 回退到 policy/v1beta1
 	}
 
 	for _, t := range ownedTypes {

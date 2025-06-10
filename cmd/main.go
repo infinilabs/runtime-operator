@@ -53,6 +53,7 @@ import (
 	appv1api "github.com/infinilabs/runtime-operator/api/app/v1"
 
 	appcontroller "github.com/infinilabs/runtime-operator/internal/controller/app"
+	commonutil "github.com/infinilabs/runtime-operator/pkg/apis/common/util"
 )
 
 var (
@@ -222,6 +223,11 @@ func main() {
 		setupLog.Error(err, "unable to start manager")
 		os.Exit(1)
 	}
+
+	// SetK8sVersionGreaterOrEqual
+	config := mgr.GetConfig()
+	// 检测集群是否 ≥ v1.21
+	commonutil.SetK8sVersionGreaterOrEqual(config, 1, 21)
 
 	if err = (&appcontroller.ApplicationDefinitionReconciler{
 		Client: mgr.GetClient(),
