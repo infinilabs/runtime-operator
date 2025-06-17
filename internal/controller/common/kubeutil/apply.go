@@ -29,6 +29,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/cisco-open/operator-tools/pkg/reconciler"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil" // For OperationResult
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -125,6 +126,41 @@ func ApplyObject(ctx context.Context, k8sClient client.Client, obj client.Object
 	// A simpler approach is to return OperationResultNone for success, and let health checks verify result.
 	// For this framework, let's indicate success with None.
 	// If the K8s libraries provided better results for SSA in the future, we could leverage that.
+
+	return ApplyResult{Operation: controllerutil.OperationResultNone, Error: nil}
+}
+
+// ApplyObjectV2 idempotently applies the desired state of a Kubernetes object
+func ApplyObjectV2(ctx context.Context, k8sClient reconciler.ResourceReconciler, obj client.Object, fieldManager string) ApplyResult {
+	// Ensure essential fields for Apply are present (Defensive check)
+	gvk := obj.GetObjectKind().GroupVersionKind()
+	objKey := client.ObjectKeyFromObject(obj)
+
+	// 内置资源没有 Group
+	if gvk.Kind == "" || gvk.Version == "" || objKey.Name == "" || objKey.Namespace == "" {
+		// Log a critical error if basic info is missing for apply.
+		err := fmt.Errorf("object is missing essential GVK or Name/Namespace for apply (GVK: %s, NsName: %s)", gvk.String(), objKey.String())
+		log.FromContext(ctx).Error(err, "Cannot apply object without complete metadata")
+		return ApplyResult{Error: err}
+	}
+
+	logger := log.FromContext(ctx).WithValues(
+		"kind", gvk.Kind,
+		"version", gvk.Version,
+		"name", objKey.Name,
+		"namespace", objKey.Namespace,
+		"fieldManager", fieldManager,
+	)
+	logger.V(1).Info("Attempting to apply object using Server-Side Apply")
+
+	_, err := k8sClient.ReconcileResource(obj, reconciler.StatePresent)
+	if err != nil {
+		// Log the error if the apply operation fails.
+		logger.Error(err, "Failed to apply object using Server-Side Apply")
+		return ApplyResult{Error: err}
+	}
+
+	logger.V(1).Info("Patch call succeeded")
 
 	return ApplyResult{Operation: controllerutil.OperationResultNone, Error: nil}
 }

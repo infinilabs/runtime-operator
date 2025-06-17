@@ -31,6 +31,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cisco-open/operator-tools/pkg/reconciler"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	policyv1 "k8s.io/api/policy/v1"
@@ -47,7 +48,7 @@ import (
 
 	appv1 "github.com/infinilabs/runtime-operator/api/app/v1"
 	"github.com/infinilabs/runtime-operator/internal/controller/common/kubeutil"
-	"github.com/infinilabs/runtime-operator/pkg/apis/common" // Needed for OperatorName constant
+	"github.com/infinilabs/runtime-operator/pkg/apis/common"
 	commonutil "github.com/infinilabs/runtime-operator/pkg/apis/common/util"
 	"github.com/infinilabs/runtime-operator/pkg/strategy"
 )
@@ -72,10 +73,11 @@ type reconcileState struct {
 
 // ApplicationDefinitionReconciler reconciles ApplicationDefinition objects.
 type ApplicationDefinitionReconciler struct {
-	client.Client
+	Client     client.Client
 	Scheme     *runtime.Scheme
 	Recorder   record.EventRecorder
 	RESTMapper meta.RESTMapper // Keep if needed for GC or complex lookups
+	Reconciler reconciler.ResourceReconciler
 }
 
 // RBAC markers... (Ensure they cover all necessary types, including ComponentDefinitions)
@@ -108,7 +110,7 @@ func (r *ApplicationDefinitionReconciler) Reconcile(ctx context.Context, req ctr
 		applyResults:        make(map[string]kubeutil.ApplyResult),
 		unmarshalledConfigs: make(map[string]interface{}), // Initialize map [Added]
 	}
-	if err := r.Get(ctx, req.NamespacedName, state.appDef); err != nil {
+	if err := r.Client.Get(ctx, req.NamespacedName, state.appDef); err != nil {
 		// Ignore not-found errors, since they can't be fixed by an immediate requeue.
 		// No need to change state if we don't find the object.
 		if client.IgnoreNotFound(err) != nil {
@@ -289,7 +291,7 @@ func (r *ApplicationDefinitionReconciler) handleFinalizer(ctx context.Context, s
 		if !controllerutil.ContainsFinalizer(appDef, appDefFinalizer) {
 			logger.Info("Adding Finalizer")
 			controllerutil.AddFinalizer(appDef, appDefFinalizer)
-			if err := r.Update(ctx, appDef); err != nil {
+			if err := r.Client.Update(ctx, appDef); err != nil {
 				logger.Error(err, "Failed to add finalizer")
 				return false, err // Return error to retry update
 			}
@@ -312,7 +314,7 @@ func (r *ApplicationDefinitionReconciler) handleFinalizer(ctx context.Context, s
 
 			logger.Info("Cleanup complete, removing Finalizer")
 			controllerutil.RemoveFinalizer(appDef, appDefFinalizer)
-			if err := r.Update(ctx, appDef); err != nil {
+			if err := r.Client.Update(ctx, appDef); err != nil {
 				logger.Error(err, "Failed to remove finalizer")
 				return true, err // isDeleted=true, return error to retry update
 			}
@@ -338,7 +340,7 @@ func (r *ApplicationDefinitionReconciler) setInitialPhase(ctx context.Context, s
 			Message: "Starting component processing"})
 
 		// 需要持久化更新到cr中，否则status一直不会更新，不会触发后续的apply
-		err := r.Status().Update(ctx, state.appDef)
+		err := r.Client.Status().Update(ctx, state.appDef)
 		if err != nil {
 			return false, err
 		}
@@ -474,7 +476,7 @@ func (r *ApplicationDefinitionReconciler) applyResources(ctx context.Context, st
 		}
 
 		// Apply using Server-Side Apply utility
-		applyResult := kubeutil.ApplyObject(ctx, r.Client, obj, common.OperatorName) // Use constant for field manager
+		applyResult := kubeutil.ApplyObjectV2(ctx, r.Reconciler, obj, common.OperatorName) // Use constant for field manager
 		state.applyResults[resultMapKey] = applyResult
 
 		if applyResult.Error != nil {
@@ -681,7 +683,7 @@ func (r *ApplicationDefinitionReconciler) updateStatusIfNeeded(ctx context.Conte
 
 	// Status has changed, attempt update
 	logger.V(1).Info("Status has changed, attempting update.", "newPhase", currentApp.Status.Phase)
-	if err := r.Status().Update(ctx, currentApp); err != nil {
+	if err := r.Client.Status().Update(ctx, currentApp); err != nil {
 		if apierrors.IsConflict(err) {
 			logger.Info("Status update conflict detected, requeuing for retry", "error", err.Error())
 			return false, err // Return conflict error for immediate requeue
