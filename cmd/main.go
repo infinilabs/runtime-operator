@@ -29,11 +29,17 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/cisco-open/operator-tools/pkg/reconciler"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 
 	_ "github.com/infinilabs/runtime-operator/pkg/builders/runtime"
 	_ "github.com/infinilabs/runtime-operator/pkg/reconcilers/runtime"
 
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	networkingv1 "k8s.io/api/networking/v1"
+	policyv1 "k8s.io/api/policy/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -45,14 +51,9 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
-	networkingv1 "k8s.io/api/networking/v1"
-	policyv1 "k8s.io/api/policy/v1"
-
 	appv1api "github.com/infinilabs/runtime-operator/api/app/v1"
-
 	appcontroller "github.com/infinilabs/runtime-operator/internal/controller/app"
+	"github.com/infinilabs/runtime-operator/pkg/apis/common"
 	commonutil "github.com/infinilabs/runtime-operator/pkg/apis/common/util"
 )
 
@@ -218,6 +219,11 @@ func main() {
 		// if you are doing or is intended to do any operation such as perform cleanups
 		// after the manager stops then its usage might be unsafe.
 		// LeaderElectionReleaseOnCancel: true,
+		Cache: cache.Options{
+			DefaultNamespaces: map[string]cache.Config{
+				common.Namespace: {},
+			},
+		},
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
@@ -230,8 +236,9 @@ func main() {
 	commonutil.SetK8sVersionGreaterOrEqual(config, 1, 21)
 
 	if err = (&appcontroller.ApplicationDefinitionReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:     mgr.GetClient(),
+		Scheme:     mgr.GetScheme(),
+		Reconciler: reconciler.NewReconcilerWith(mgr.GetClient()),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ApplicationDefinition")
 		os.Exit(1)
