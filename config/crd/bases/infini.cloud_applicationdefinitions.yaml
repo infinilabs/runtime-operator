@@ -107,6 +107,10 @@ spec:
             description: ApplicationDefinitionStatus defines the observed state of
               ApplicationDefinition.
             properties:
+              annotations:
+                additionalProperties:
+                  type: string
+                type: object
               components:
                 description: Components provides a summary status for each component
                   defined in the spec.

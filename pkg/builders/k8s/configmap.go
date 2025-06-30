@@ -25,6 +25,10 @@
 package k8s
 
 import (
+	"crypto/sha256"
+	"encoding/json"
+	"fmt"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -67,4 +71,14 @@ func BuildConfigMapsFromAppData(appConfigData map[string]string, resourceName st
 
 	// Return a slice containing the built ConfigMap
 	return []client.Object{cm}, nil
+}
+
+func HashConfigMap(cm *corev1.ConfigMap) (string, error) {
+	// Only hash the data field (not metadata)
+	data, err := json.Marshal(cm.Data)
+	if err != nil {
+		return "", err
+	}
+	sum := sha256.Sum256(data)
+	return fmt.Sprintf("%x", sum), nil
 }
