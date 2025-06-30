@@ -26,6 +26,7 @@ package runtime
 import (
 	"context"
 	"fmt"
+	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -158,7 +159,43 @@ func (b *RuntimeBuilderStrategy) BuildObjects(ctx context.Context, k8sClient cli
 	serviceAccountName := builders.DeriveServiceAccountName(instanceName, serviceAccountConfig)
 
 	podLabels := builders.MergeMaps(commonLabels, selectorLabels)
-	var podAnnotations map[string]string
+	var podAnnotations = map[string]string{}
+	// --- 5. Build ConfigMaps/Secrets from Config File Data ---
+	if runtimeConfig.ConfigFiles != nil && len(runtimeConfig.ConfigFiles) > 0 {
+		configMapResourceName := resourceName + "-config"
+		logger.V(1).Info("Building ConfigMap object", "name", configMapResourceName)
+		cmObjects, err := builders.BuildConfigMapsFromAppData(runtimeConfig.ConfigFiles, configMapResourceName, namespace, commonLabels)
+		if err != nil {
+			return nil, fmt.Errorf("failed to build ConfigMaps from ConfigFiles for %s: %w", instanceName, err)
+		}
+		
+		// Check if we need to restart the pod based on ConfigMap changes
+		var needRestart bool
+		for _, cmObj := range cmObjects {
+			cm, ok := cmObj.(*corev1.ConfigMap)
+			if ok {
+				hashV, err := builders.HashConfigMap(cm) // Hash the ConfigMap data for consistency
+				if err != nil {
+					return nil, fmt.Errorf("failed to hash ConfigMap data for %s: %w", instanceName, err)
+				}
+				if oldCv, ok := appDef.Status.Annotations[cm.GetName()]; !ok || oldCv != hashV {
+					needRestart = true // If hash changed, we need to restart the pod
+					if appDef.Status.Annotations == nil {
+						appDef.Status.Annotations = make(map[string]string) // Initialize if nil
+					}
+					appDef.Status.Annotations[cm.GetName()] = hashV // Update the annotation with new hash
+				}
+			}
+		}
+		if needRestart {
+			logger.V(1).Info("ConfigMap change detected, marking pod for restart")
+			// Add annotation to trigger pod rolling restart
+			podAnnotations["runtime-operator/restartedAt"] = time.Now().Format(time.RFC3339) // Add restart timestamp annotation
+		}
+		builtObjects = append(builtObjects, cmObjects...)
+		logger.V(1).Info("Successfully built ConfigMap object(s)")
+		// TODO: Handle Secrets similarly if needed
+	}
 
 	logger.V(1).Info("Building PodTemplateSpec")
 	builtPodTemplateSpec, err := builders.BuildPodTemplateSpec(
@@ -235,19 +272,6 @@ func (b *RuntimeBuilderStrategy) BuildObjects(ctx context.Context, k8sClient cli
 		logger.V(1).Info("Successfully built Client Service object")
 	} else {
 		logger.V(1).Info("Skipping Client Service creation based on configuration")
-	}
-
-	// --- 5. Build ConfigMaps/Secrets from Config File Data ---
-	if runtimeConfig.ConfigFiles != nil && len(runtimeConfig.ConfigFiles) > 0 {
-		configMapResourceName := resourceName + "-config"
-		logger.V(1).Info("Building ConfigMap object", "name", configMapResourceName)
-		cmObjects, err := builders.BuildConfigMapsFromAppData(runtimeConfig.ConfigFiles, configMapResourceName, namespace, commonLabels)
-		if err != nil {
-			return nil, fmt.Errorf("failed to build ConfigMaps from ConfigFiles for %s: %w", instanceName, err)
-		}
-		builtObjects = append(builtObjects, cmObjects...)
-		logger.V(1).Info("Successfully built ConfigMap object(s)")
-		// TODO: Handle Secrets similarly if needed
 	}
 
 	// --- 6. Build Service Account object ---
