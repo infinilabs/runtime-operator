@@ -161,6 +161,7 @@ type ApplicationDefinitionStatus struct {
 	// +listType=map
 	// +listMapKey=name
 	Components []ComponentStatusReference `json:"components,omitempty" listType:"map" listMapKey:"name"`
+	Annotations map[string]string `json:"annotations,omitempty"`
 }
 
 // --- Root Object ---
