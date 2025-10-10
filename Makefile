@@ -42,7 +42,7 @@ help: ## Display this help.
 ##@ Development
 
 .PHONY: manifests
-manifests: controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
+manifests: controller-gen ## Generate WebhookConfiguration, Role and CustomResourceDefinition objects.
 	$(CONTROLLER_GEN) rbac:roleName=manager-role crd webhook paths="./..." output:crd:artifacts:config=config/crd/bases
 
 .PHONY: generate
@@ -133,6 +133,22 @@ build-installer: manifests generate kustomize ## Generate a consolidated YAML wi
 	mkdir -p dist
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
 	$(KUSTOMIZE) build config/default > dist/install.yaml
+
+.PHONY: build-install
+build-install: manifests generate kustomize ## Generate a consolidated YAML with CRDs and deployment.
+	rm -rf dist && mkdir -p dist
+	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
+	$(KUSTOMIZE) build config/default > dist/install.yaml
+	@start_line=$$( awk 'prev_line == "apiVersion: v1" && $$0 ~ /^kind: ServiceAccount$$/ {print NR-1; exit} {prev_line=$$0}' dist/install.yaml ); \
+	if [ -n "$$start_line" ]; then \
+		head -n $$((start_line - 2)) dist/install.yaml > dist/crds.yaml && \
+		tail -n +$$start_line dist/install.yaml > dist/manager.yaml; \
+	fi
+	sed -e 's|rw-rw----|660|g' dist/crds.yaml > dist/crds.tpl && \
+	sed -e 's|namespace: .*|namespace: $$[[namespace]]|' \
+        -e 's|image: .*|image: $$[[image_name]]:$$[[image_tag]]|' \
+        dist/manager.yaml > dist/manager.tpl && \
+	rm -rf dist/*.yaml
 
 ##@ Deployment
 
