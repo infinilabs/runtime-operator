@@ -147,6 +147,7 @@ build-install: manifests generate kustomize ## Generate a consolidated YAML with
 	sed -e 's|rw-rw----|660|g' dist/crds.yaml > dist/crds.tpl && \
 	sed -e 's|namespace: .*|namespace: $$[[namespace]]|' \
         -e 's|image: .*|image: $$[[image_name]]:$$[[image_tag]]|' \
+		-e 's|name: manager-role|name: runtime-operator-manager-role|g' \
         dist/manager.yaml > dist/manager.tpl && \
 	rm -rf dist/*.yaml
 

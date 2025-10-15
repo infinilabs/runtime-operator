@@ -29,6 +29,7 @@ import (
 	"fmt"
 
 	"github.com/infinilabs/runtime-operator/internal/controller/common/kubeutil"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
@@ -107,17 +108,24 @@ func (t *ApplyResourcesTask) Execute(ctx context.Context, taskContext *TaskConte
 		taskContext.ApplyResults[resultMapKey] = applyResult               // Store the result using unique key
 
 		if applyResult.Error != nil {
-			// Record apply failure but continue to attempt applying other resources unless it's a fatal error type?
-			// For Apply task, let's consider any apply error as something to report, but maybe not stop the whole task run immediately.
-			errMsg := fmt.Sprintf("Failed to apply resource %s %s/%s: %v", obj.GetObjectKind().GroupVersionKind().Kind, obj.GetNamespace(), obj.GetName(), applyResult.Error)
-			logger.Error(applyResult.Error, errMsg)
-			if recorder != nil {
-				recorder.Eventf(owner.(runtime.Object), "Warning", "ResourceApplyFailed", errMsg)
+			if apierrors.IsConflict(applyResult.Error) {
+				logger.V(1).Info("Conflict detected during apply, will retry in next reconciliation", "kind", obj.GetObjectKind().GroupVersionKind().Kind, "name", obj.GetNamespace()+"/"+obj.GetName())
+				if firstTaskErr == nil {
+					firstTaskErr = applyResult.Error
+				}
+			} else {
+				// Record apply failure but continue to attempt applying other resources unless it's a fatal error type?
+				// For Apply task, let's consider any apply error as something to report, but maybe not stop the whole task run immediately.
+				errMsg := fmt.Sprintf("Failed to apply resource %s %s/%s: %v", obj.GetObjectKind().GroupVersionKind().Kind, obj.GetNamespace(), obj.GetName(), applyResult.Error)
+				logger.Error(applyResult.Error, errMsg)
+				if recorder != nil {
+					recorder.Eventf(owner.(runtime.Object), "Warning", "ResourceApplyFailed", errMsg)
+				}
+				if firstTaskErr == nil {
+					firstTaskErr = applyResult.Error
+				} // Track the first apply error encountered
+				// Continue applying other objects even if one fails
 			}
-			if firstTaskErr == nil {
-				firstTaskErr = applyResult.Error
-			} // Track the first apply error encountered
-			// Continue applying other objects even if one fails
 		} else {
 			logger.V(1).Info("Successfully applied resource", "kind", obj.GetObjectKind().GroupVersionKind().Kind, "name", obj.GetNamespace()+"/"+obj.GetName(), "operation", applyResult.Operation)
 		}
