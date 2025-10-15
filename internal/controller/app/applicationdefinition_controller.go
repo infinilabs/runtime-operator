@@ -458,6 +458,31 @@ func (r *ApplicationDefinitionReconciler) applyResources(ctx context.Context, st
 		objKey := client.ObjectKeyFromObject(obj)
 		resultMapKey := kubeutil.BuildObjectResultMapKey(obj)
 
+		// Before applying, check if the object is a Service and preserve its ClusterIP.
+		// This is the core fix for the "field is immutable" error.
+		if svc, ok := obj.(*corev1.Service); ok {
+			// Create a placeholder for the current service state in the cluster
+			currentSvc := &corev1.Service{}
+			// Try to get the service from the cluster
+			err := r.Client.Get(ctx, objKey, currentSvc)
+
+			if err != nil && !apierrors.IsNotFound(err) {
+				// If we failed to get the service for any reason other than it not existing,
+				// this is a real error. We should stop and requeue.
+				return fmt.Errorf("failed to get existing service %s: %w", objKey, err)
+			}
+
+			// If the service was found (err is nil)
+			if err == nil {
+				// Preserve the existing ClusterIP in our desired object.
+				// This prevents the apply operation from trying to change an immutable field.
+				svc.Spec.ClusterIP = currentSvc.Spec.ClusterIP
+			}
+			// If the service was not found (apierrors.IsNotFound(err) was true),
+			// we do nothing. The 'svc' object with an empty ClusterIP will be used to create a new service,
+			// and Kubernetes will assign a new IP, which is the correct behavior.
+		}
+
 		// Set Owner Reference before applying
 		if err := controllerutil.SetControllerReference(appDef, obj, r.Scheme); err != nil {
 			// This is critical, log and potentially stop/return error
@@ -467,10 +492,7 @@ func (r *ApplicationDefinitionReconciler) applyResources(ctx context.Context, st
 			if firstApplyErr == nil {
 				firstApplyErr = fmt.Errorf(errMsg) // Wrap error
 			}
-			// Store error in results, but continue to try setting refs on others?
-			// Let's decide to stop on the first OwnerRef error for now.
 			state.applyResults[resultMapKey] = kubeutil.ApplyResult{Error: firstApplyErr}
-			// Update component status for this object's component
 			r.updateComponentStatusForApplyError(state.componentStatuses, obj, firstApplyErr)
 			return firstApplyErr // Stop applying on owner ref failure
 		}
@@ -480,24 +502,28 @@ func (r *ApplicationDefinitionReconciler) applyResources(ctx context.Context, st
 		state.applyResults[resultMapKey] = applyResult
 
 		if applyResult.Error != nil {
-			errMsg := fmt.Sprintf("Failed to apply resource %s %s: %v", gvk.Kind, objKey.String(), applyResult.Error)
-			logger.Error(applyResult.Error, errMsg)
-			r.Recorder.Eventf(appDef, corev1.EventTypeWarning, "ResourceApplyFailed", errMsg)
-			if firstApplyErr == nil {
-				firstApplyErr = applyResult.Error // Record the first apply error
+			if apierrors.IsConflict(applyResult.Error) {
+				logger.Info("Optimistic lock conflict detected, will requeue and retry.", "resource", objKey, "kind", gvk.Kind)
+				if firstApplyErr == nil {
+					firstApplyErr = applyResult.Error
+				}
+			} else {
+				errMsg := fmt.Sprintf("Failed to apply resource %s %s: %v", gvk.Kind, objKey.String(), applyResult.Error)
+				logger.Error(applyResult.Error, errMsg)
+				r.Recorder.Eventf(appDef, corev1.EventTypeWarning, "ResourceApplyFailed", errMsg)
+				if firstApplyErr == nil {
+					firstApplyErr = applyResult.Error
+				}
+				r.updateComponentStatusForApplyError(state.componentStatuses, obj, applyResult.Error)
 			}
-			// Update component status for this object's component
-			r.updateComponentStatusForApplyError(state.componentStatuses, obj, applyResult.Error)
-			// Continue applying other objects even if one fails
 		} else {
 			logger.V(1).Info("Successfully applied resource", "kind", gvk.Kind, "name", objKey.String(), "operation", applyResult.Operation)
 		}
 	}
 
-	// Update component statuses based on the apply results *after* the loop
 	updateComponentStatusesFromApplyResults(state.componentStatuses, state.desiredObjects, state.applyResults)
 
-	return firstApplyErr // Return the first error encountered during apply, if any
+	return firstApplyErr
 }
 
 // checkHealthAndCalculateStatus checks K8s and Application level health. [Modified]
