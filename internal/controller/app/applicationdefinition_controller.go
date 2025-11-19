@@ -51,6 +51,7 @@ import (
 	"github.com/infinilabs/runtime-operator/pkg/apis/common"
 	commonutil "github.com/infinilabs/runtime-operator/pkg/apis/common/util"
 	"github.com/infinilabs/runtime-operator/pkg/strategy"
+	"github.com/infinilabs/runtime-operator/pkg/webrecorder"
 )
 
 const (
@@ -122,6 +123,10 @@ func (r *ApplicationDefinitionReconciler) Reconcile(ctx context.Context, req ctr
 	}
 	// DeepCopy the status for comparison later
 	state.originalStatus = state.appDef.Status.DeepCopy()
+
+	// Record reconciliation start event
+	r.recordEvent(state.appDef, "Reconcile", webrecorder.StatusInProgress, "ReconcileStart",
+		corev1.EventTypeNormal, "ReconcileStarted", "Starting reconciliation")
 
 	// Initialize component status map based on current spec
 	if err := r.initializeComponentStatuses(state); err != nil {
@@ -221,6 +226,18 @@ func (r *ApplicationDefinitionReconciler) Reconcile(ctx context.Context, req ctr
 		"overallError", state.firstError, // Log the first encountered error
 	)
 
+	// Record reconciliation completion event
+	if state.firstError != nil {
+		r.recordEventf(state.appDef, "Reconcile", webrecorder.StatusFailure, "ReconcileComplete",
+			corev1.EventTypeWarning, "ReconcileFailed", "Reconciliation failed: %v", state.firstError)
+	} else if allReady {
+		r.recordEvent(state.appDef, "Reconcile", webrecorder.StatusSuccess, "ReconcileComplete",
+			corev1.EventTypeNormal, "ReconcileCompleted", "Reconciliation completed successfully, all components ready")
+	} else {
+		r.recordEvent(state.appDef, "Reconcile", webrecorder.StatusInProgress, "ReconcileComplete",
+			corev1.EventTypeNormal, "ReconcileProgressing", "Reconciliation in progress, waiting for components to be ready")
+	}
+
 	if needsRequeue {
 		// Use a default requeue interval, or adjust based on error type later
 		requeueInterval := 30 * time.Second
@@ -267,7 +284,7 @@ func (r *ApplicationDefinitionReconciler) initializeComponentStatuses(state *rec
 func (r *ApplicationDefinitionReconciler) handleEmptyApp(ctx context.Context, state *reconcileState) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 	logger.Info("ApplicationDefinition has no components defined.")
-	state.appDef.Status.Phase = appv1.ApplicationPhaseAvailable // Consider it Available if empty
+	state.appDef.Status.Phase = appv1.ApplicationPhaseRunning // Consider it Available if empty
 	state.appDef.Status.Components = []appv1.ComponentStatusReference{}
 	setCondition(state.appDef, metav1.Condition{Type: string(appv1.ConditionReady), Status: metav1.ConditionTrue, Reason: "NoComponentsDefined", Message: "Application has no components defined"})
 
@@ -332,7 +349,7 @@ func (r *ApplicationDefinitionReconciler) handleFinalizer(ctx context.Context, s
 func (r *ApplicationDefinitionReconciler) setInitialPhase(ctx context.Context, state *reconcileState) (bool, error) {
 	currentPhase := state.appDef.Status.Phase
 	if currentPhase == "" || currentPhase == appv1.ApplicationPhasePending {
-		state.appDef.Status.Phase = appv1.ApplicationPhaseProcessing
+		state.appDef.Status.Phase = appv1.ApplicationPhaseCreating
 		setCondition(state.appDef, metav1.Condition{
 			Type:    string(appv1.ConditionReady),
 			Status:  metav1.ConditionFalse,
@@ -344,7 +361,8 @@ func (r *ApplicationDefinitionReconciler) setInitialPhase(ctx context.Context, s
 		if err != nil {
 			return false, err
 		}
-		r.Recorder.Event(state.appDef, corev1.EventTypeNormal, "Processing", "Starting component processing")
+		r.recordEvent(state.appDef, "Processing", webrecorder.StatusInProgress, "StartProcessing",
+			corev1.EventTypeNormal, "Processing", "Starting component processing")
 		// Status will be updated later if needed, just return true to signal requeue
 		return true, nil // Signal that phase changed and might need status update + requeue
 	}
@@ -488,7 +506,8 @@ func (r *ApplicationDefinitionReconciler) applyResources(ctx context.Context, st
 			// This is critical, log and potentially stop/return error
 			errMsg := fmt.Sprintf("Failed to set OwnerReference on %s %s: %v", gvk.Kind, objKey.String(), err)
 			logger.Error(err, errMsg)
-			r.Recorder.Eventf(appDef, corev1.EventTypeWarning, "SetOwnerRefFailed", errMsg)
+			r.recordEventf(appDef, "ApplyResources", webrecorder.StatusFailure, "SetOwnerReference",
+				corev1.EventTypeWarning, "SetOwnerRefFailed", errMsg)
 			if firstApplyErr == nil {
 				firstApplyErr = fmt.Errorf(errMsg) // Wrap error
 			}
@@ -510,7 +529,8 @@ func (r *ApplicationDefinitionReconciler) applyResources(ctx context.Context, st
 			} else {
 				errMsg := fmt.Sprintf("Failed to apply resource %s %s: %v", gvk.Kind, objKey.String(), applyResult.Error)
 				logger.Error(applyResult.Error, errMsg)
-				r.Recorder.Eventf(appDef, corev1.EventTypeWarning, "ResourceApplyFailed", errMsg)
+				r.recordEventf(appDef, "ApplyResources", webrecorder.StatusFailure, "ApplyResource",
+					corev1.EventTypeWarning, "ResourceApplyFailed", errMsg)
 				if firstApplyErr == nil {
 					firstApplyErr = applyResult.Error
 				}
@@ -642,7 +662,7 @@ func (r *ApplicationDefinitionReconciler) determineFinalPhase(state *reconcileSt
 
 	// No critical errors encountered in this cycle
 	if allComponentsReady {
-		state.appDef.Status.Phase = appv1.ApplicationPhaseAvailable
+		state.appDef.Status.Phase = appv1.ApplicationPhaseRunning
 		setCondition(state.appDef, metav1.Condition{Type: string(appv1.ConditionReady), Status: metav1.ConditionTrue, Reason: "ComponentsReady", Message: "All components reconciled and healthy"})
 	} else {
 		// No errors, but not all components are ready/healthy yet
@@ -650,14 +670,14 @@ func (r *ApplicationDefinitionReconciler) determineFinalPhase(state *reconcileSt
 		message := "One or more components are not ready or unhealthy"
 
 		// Determine if it's applying or degraded
-		if currentPhase == appv1.ApplicationPhaseAvailable || currentPhase == appv1.ApplicationPhaseDegraded {
+		if currentPhase == appv1.ApplicationPhaseRunning || currentPhase == appv1.ApplicationPhaseDegraded {
 			// Was previously Available or Degraded, now not ready -> Degraded
 			state.appDef.Status.Phase = appv1.ApplicationPhaseDegraded
 			reason = "ComponentsDegraded"
 			message = "One or more previously ready components are now unhealthy or not ready"
 		} else {
 			// Still in initial phases (Processing, Applying) or recovering from Failed
-			state.appDef.Status.Phase = appv1.ApplicationPhaseApplying // Or keep Processing if appropriate? Applying seems better.
+			state.appDef.Status.Phase = appv1.ApplicationPhaseUpdateing // Or keep Processing if appropriate? Applying seems better.
 			reason = "ComponentsApplying"
 			message = "Waiting for components to become ready and healthy"
 		}
@@ -894,4 +914,54 @@ func (r *ApplicationDefinitionReconciler) SetupWithManager(mgr ctrl.Manager) err
 	}
 
 	return builder.Complete(r)
+}
+
+// getEventRecorder returns the appropriate event recorder based on ApplicationDefinition annotations.
+// If webhook annotations are present, it returns a WebhookEventRecorder; otherwise, returns the standard recorder.
+func (r *ApplicationDefinitionReconciler) getEventRecorder(app *appv1.ApplicationDefinition) record.EventRecorder {
+	if app == nil || app.Annotations == nil {
+		return r.Recorder
+	}
+
+	changeID := app.Annotations[appv1.AnnotationChangeID]
+	clusterID := app.Annotations[appv1.AnnotationClusterID]
+	webhookURL := app.Annotations[appv1.AnnotationChangeWebhookURL]
+
+	if webhookURL == "" || changeID == "" {
+		return r.Recorder
+	}
+
+	return webrecorder.NewWebhookEventRecorder(webhookURL, changeID, clusterID)
+}
+
+// recordEvent is a helper method to record events with optional webhook support
+func (r *ApplicationDefinitionReconciler) recordEvent(app *appv1.ApplicationDefinition, phase, status, step, eventType, reason, message string) {
+	recorder := r.getEventRecorder(app)
+
+	if wr, ok := recorder.(*webrecorder.WebhookEventRecorder); ok {
+		annotations := map[string]string{
+			webrecorder.PhaseKey:  phase,
+			webrecorder.StatusKey: status,
+			webrecorder.StepKey:   step,
+		}
+		wr.AnnotatedEventf(app, annotations, eventType, reason, message)
+	} else {
+		recorder.Event(app, eventType, reason, message)
+	}
+}
+
+// recordEventf is a helper method to record formatted events with optional webhook support
+func (r *ApplicationDefinitionReconciler) recordEventf(app *appv1.ApplicationDefinition, phase, status, step, eventType, reason, messageFmt string, args ...interface{}) {
+	recorder := r.getEventRecorder(app)
+
+	if wr, ok := recorder.(*webrecorder.WebhookEventRecorder); ok {
+		annotations := map[string]string{
+			webrecorder.PhaseKey:  phase,
+			webrecorder.StatusKey: status,
+			webrecorder.StepKey:   step,
+		}
+		wr.AnnotatedEventf(app, annotations, eventType, reason, messageFmt, args...)
+	} else {
+		recorder.Eventf(app, eventType, reason, messageFmt, args...)
+	}
 }
