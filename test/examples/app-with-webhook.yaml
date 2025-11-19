@@ -1,0 +1,46 @@
+apiVersion: infini.cloud/v1
+kind: ApplicationDefinition
+metadata:
+  name: demo-app-with-webhook
+  namespace: default
+  annotations:
+    # 配置 webhook 上报
+    infini.cloud/change-id: "change-2024-11-19-001"
+    infini.cloud/cluster-id: "cluster-id"
+    infini.cloud/change-webhook-url: "https://webhook.site/your-unique-id"
+spec:
+  components:
+    - name: nginx-web
+      apiVersion: apps/v1
+      kind: StatefulSet
+      type: stateless-service
+      properties:
+        replicas: 3
+        image:
+          repository: nginx
+          tag: "1.21"
+          pullPolicy: IfNotPresent
+        ports:
+          - name: http
+            containerPort: 80
+            protocol: TCP
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "512Mi"
+          limits:
+            cpu: "1000m"
+            memory: "1Gi"
+        service:
+          type: ClusterIP
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+        storage:
+          enabled: true
+          size: 10Gi
+          mountPath: /usr/share/nginx/html
+          storageClassName: standard
+          accessModes:
+            - ReadWriteOnce

@@ -32,6 +32,17 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
+// --- Constants for Annotations ---
+
+const (
+	// AnnotationChangeID is the annotation key for tracking change/reconciliation ID
+	AnnotationChangeID = "infini.cloud/change-id"
+	// AnnotationClusterID is the annotation key for cluster ID
+	AnnotationClusterID = "infini.cloud/cluster-id"
+	// AnnotationChangeWebhookURL is the annotation key for webhook URL
+	AnnotationChangeWebhookURL = "infini.cloud/change-webhook-url"
+)
+
 // --- Constants for Phase and Conditions ---
 
 // ApplicationPhase represents the current state of the ApplicationDefinition reconciliation process.
@@ -41,12 +52,12 @@ type ApplicationPhase string
 const (
 	// ApplicationPhasePending indicates the application definition is waiting to be processed.
 	ApplicationPhasePending ApplicationPhase = "Pending"
-	// ApplicationPhaseProcessing indicates the controller is processing the definition (e.g., building objects).
-	ApplicationPhaseProcessing ApplicationPhase = "Processing"
-	// ApplicationPhaseApplying indicates the controller is applying K8s resources and waiting for them to become ready.
-	ApplicationPhaseApplying ApplicationPhase = "Applying"
-	// ApplicationPhaseAvailable indicates all components are reconciled and healthy.
-	ApplicationPhaseAvailable ApplicationPhase = "Available"
+	// ApplicationPhaseCreating indicates the controller is processing the definition (e.g., building objects).
+	ApplicationPhaseCreating ApplicationPhase = "Creating"
+	// ApplicationPhaseUpdateing indicates the controller is applying K8s resources and waiting for them to become ready.
+	ApplicationPhaseUpdateing ApplicationPhase = "Updating"
+	// ApplicationPhaseRunning indicates all components are reconciled and healthy.
+	ApplicationPhaseRunning ApplicationPhase = "Running"
 	// ApplicationPhaseDegraded indicates one or more components were previously ready but are now unhealthy or not ready.
 	ApplicationPhaseDegraded ApplicationPhase = "Degraded"
 	// ApplicationPhaseDeleting indicates the application definition is being deleted.
@@ -161,6 +172,8 @@ type ApplicationDefinitionStatus struct {
 	// +listType=map
 	// +listMapKey=name
 	Components []ComponentStatusReference `json:"components,omitempty" listType:"map" listMapKey:"name"`
+
+	// Annotations holds additional metadata annotations for the application definition.
 	Annotations map[string]string `json:"annotations,omitempty"`
 }
 
