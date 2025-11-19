@@ -110,6 +110,8 @@ spec:
               annotations:
                 additionalProperties:
                   type: string
+                description: Annotations holds additional metadata annotations for
+                  the application definition.
                 type: object
               components:
                 description: Components provides a summary status for each component
@@ -227,9 +229,9 @@ spec:
                   reconciliation.
                 enum:
                 - Pending
-                - Processing
-                - Applying
-                - Available
+                - Creating
+                - Updating
+                - Running
                 - Degraded
                 - Deleting
                 - Failed
