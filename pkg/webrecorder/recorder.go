@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -40,10 +41,10 @@ const (
 // --- Constants for Webhook sender configuration ---
 const (
 	// WebhookRetryMaxAttempts is the maximum number of times to retry sending a webhook event upon failure.
-	WebhookRetryMaxAttempts = 5
+	WebhookRetryMaxAttempts = 3
 	// WebhookRetryInitialInterval is the base duration to wait before the first retry.
 	// Subsequent retries will use exponential backoff.
-	WebhookRetryInitialInterval = 60 * time.Second
+	WebhookRetryInitialInterval = 2 * time.Second
 )
 
 // ResourceChange tracks resource changes (CPU, memory, disk, replicas)
@@ -121,7 +122,7 @@ func NewWebhookEventRecorder(webhookURL, eventID, clusterID string) record.Event
 		clusterID:  clusterID,
 		logger:     log.Log.WithName("Web Event Recorder"),
 		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
+			Timeout: 5 * time.Second, // 降低超时时间，避免长时间阻塞
 		},
 	}
 }
@@ -200,12 +201,10 @@ func (r *WebhookEventRecorder) sendEvent(data *WebhookEvent) {
 		return
 	}
 
-	var lastErr error
-
 	for attempt := 0; attempt < WebhookRetryMaxAttempts; attempt++ {
 		// For the first attempt, send immediately. For subsequent attempts, wait.
 		if attempt > 0 {
-			// Calculate exponential backoff: 60s, 120s, 240s, etc.
+			// Calculate exponential backoff: 2s, 4s, 8s
 			backoffDuration := WebhookRetryInitialInterval * time.Duration(math.Pow(2, float64(attempt-1)))
 			r.logger.Info("Webhook send failed. Retrying...",
 				"attempt", fmt.Sprintf("%d/%d", attempt+1, WebhookRetryMaxAttempts),
@@ -214,7 +213,7 @@ func (r *WebhookEventRecorder) sendEvent(data *WebhookEvent) {
 		}
 
 		// Use a context with a timeout for each individual request attempt.
-		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
 		req, err := http.NewRequestWithContext(ctx, "POST", r.webhookURL, bytes.NewBuffer(jsonData))
@@ -227,8 +226,12 @@ func (r *WebhookEventRecorder) sendEvent(data *WebhookEvent) {
 
 		resp, err := r.httpClient.Do(req)
 		if err != nil {
-			lastErr = err
-			r.logger.Error(err, "Failed to send event to webhook", "url", r.webhookURL)
+			r.logger.V(1).Info("Failed to send event to webhook", "url", r.webhookURL, "error", err.Error())
+			// 快速失败：如果是连接拒绝或EOF，不再重试
+			if isNetworkError(err) {
+				r.logger.Info("Network error detected, skipping remaining retries", "error", err.Error())
+				return
+			}
 			continue // Proceed to the next retry attempt
 		}
 		defer resp.Body.Close()
@@ -240,11 +243,23 @@ func (r *WebhookEventRecorder) sendEvent(data *WebhookEvent) {
 		}
 
 		// If the status code indicates an error, treat it as a failure.
-		lastErr = fmt.Errorf("server returned non-2xx status: %s", resp.Status)
-		r.logger.Error(lastErr, "Webhook endpoint returned an error")
+		r.logger.V(1).Info("Webhook endpoint returned an error", "status", resp.Status)
 	}
 
 	// If the loop completes, all retries have failed.
-	r.logger.Error(lastErr, "Failed to send event to webhook after all retries, dropping the event.",
+	r.logger.V(1).Info("Failed to send event to webhook after all retries, dropping the event.",
 		"max_retries", WebhookRetryMaxAttempts)
+}
+
+// isNetworkError checks if the error is a network-related error that should not be retried
+func isNetworkError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errStr := err.Error()
+	// Check for common non-retriable network errors
+	return strings.Contains(errStr, "connection refused") ||
+		strings.Contains(errStr, "EOF") ||
+		strings.Contains(errStr, "no such host") ||
+		strings.Contains(errStr, "network is unreachable")
 }

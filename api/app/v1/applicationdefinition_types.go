@@ -46,7 +46,7 @@ const (
 // --- Constants for Phase and Conditions ---
 
 // ApplicationPhase represents the current state of the ApplicationDefinition reconciliation process.
-// +kubebuilder:validation:Enum=Pending;Processing;Applying;Available;Degraded;Deleting;Failed
+// +kubebuilder:validation:Enum=Pending;Creating;Updating;Running;Degraded;Deleting;Failed
 type ApplicationPhase string
 
 const (
