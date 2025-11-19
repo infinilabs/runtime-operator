@@ -145,8 +145,9 @@ build-install: manifests generate kustomize ## Generate a consolidated YAML with
 		tail -n +$$start_line dist/install.yaml > dist/manager.yaml; \
 	fi
 	sed -e 's|rw-rw----|660|g' dist/crds.yaml > dist/crds.tpl && \
-	sed -e 's|namespace: .*|namespace: $$[[namespace]]|' \
-        -e 's|image: .*|image: $$[[image_name]]:$$[[image_tag]]|' \
+	sed -e 's|namespace: .*|namespace: "$$[[namespace]]"|' \
+        -e 's|image: .*|image: $$[[image]]|' \
+        -e '/kind: ClusterRole/,/metadata:/ { s|kind: ClusterRole|kind: Role|; /metadata:/ { G; s|\n|  \n  namespace: $$[[namespace]]|; }; }' \
 		-e 's|name: manager-role|name: runtime-operator-manager-role|g' \
         dist/manager.yaml > dist/manager.tpl && \
 	rm -rf dist/*.yaml
