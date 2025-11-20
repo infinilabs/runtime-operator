@@ -125,7 +125,7 @@ func (r *ApplicationDefinitionReconciler) Reconcile(ctx context.Context, req ctr
 	state.originalStatus = state.appDef.Status.DeepCopy()
 
 	// Record reconciliation start event
-	r.recordEvent(state.appDef, "Reconcile", webrecorder.StatusInProgress, "ReconcileStart",
+	r.recordEvent(state.appDef, "Reconcile", webrecorder.StatusInProgress, "SyncComponent",
 		corev1.EventTypeNormal, "ReconcileStarted", "Starting reconciliation")
 
 	// Initialize component status map based on current spec
@@ -228,13 +228,13 @@ func (r *ApplicationDefinitionReconciler) Reconcile(ctx context.Context, req ctr
 
 	// Record reconciliation completion event
 	if state.firstError != nil {
-		r.recordEventf(state.appDef, "Reconcile", webrecorder.StatusFailure, "ReconcileComplete",
+		r.recordEventf(state.appDef, "Reconcile", webrecorder.StatusFailure, "SyncComponent",
 			corev1.EventTypeWarning, "ReconcileFailed", "Reconciliation failed: %v", state.firstError)
 	} else if allReady {
-		r.recordEvent(state.appDef, "Reconcile", webrecorder.StatusSuccess, "ReconcileComplete",
+		r.recordEvent(state.appDef, "Reconcile", webrecorder.StatusSuccess, "SyncComponent",
 			corev1.EventTypeNormal, "ReconcileCompleted", "Reconciliation completed successfully, all components ready")
 	} else {
-		r.recordEvent(state.appDef, "Reconcile", webrecorder.StatusInProgress, "ReconcileComplete",
+		r.recordEvent(state.appDef, "Reconcile", webrecorder.StatusInProgress, "SyncComponent",
 			corev1.EventTypeNormal, "ReconcileProgressing", "Reconciliation in progress, waiting for components to be ready")
 	}
 
@@ -361,7 +361,7 @@ func (r *ApplicationDefinitionReconciler) setInitialPhase(ctx context.Context, s
 		if err != nil {
 			return false, err
 		}
-		r.recordEvent(state.appDef, "Processing", webrecorder.StatusInProgress, "StartProcessing",
+		r.recordEvent(state.appDef, "Processing", webrecorder.StatusInProgress, "SyncComponent",
 			corev1.EventTypeNormal, "Processing", "Starting component processing")
 		// Status will be updated later if needed, just return true to signal requeue
 		return true, nil // Signal that phase changed and might need status update + requeue
@@ -506,7 +506,7 @@ func (r *ApplicationDefinitionReconciler) applyResources(ctx context.Context, st
 			// This is critical, log and potentially stop/return error
 			errMsg := fmt.Sprintf("Failed to set OwnerReference on %s %s: %v", gvk.Kind, objKey.String(), err)
 			logger.Error(err, errMsg)
-			r.recordEventf(appDef, "ApplyResources", webrecorder.StatusFailure, "SetOwnerReference",
+			r.recordEventf(appDef, "ApplyResources", webrecorder.StatusFailure, "SyncComponent",
 				corev1.EventTypeWarning, "SetOwnerRefFailed", errMsg)
 			if firstApplyErr == nil {
 				firstApplyErr = fmt.Errorf(errMsg) // Wrap error
@@ -529,7 +529,7 @@ func (r *ApplicationDefinitionReconciler) applyResources(ctx context.Context, st
 			} else {
 				errMsg := fmt.Sprintf("Failed to apply resource %s %s: %v", gvk.Kind, objKey.String(), applyResult.Error)
 				logger.Error(applyResult.Error, errMsg)
-				r.recordEventf(appDef, "ApplyResources", webrecorder.StatusFailure, "ApplyResource",
+				r.recordEventf(appDef, "ApplyResources", webrecorder.StatusFailure, "SyncComponent",
 					corev1.EventTypeWarning, "ResourceApplyFailed", errMsg)
 				if firstApplyErr == nil {
 					firstApplyErr = applyResult.Error
