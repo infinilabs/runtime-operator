@@ -236,9 +236,11 @@ func main() {
 	commonutil.SetK8sVersionGreaterOrEqual(config, 1, 21)
 
 	if err = (&appcontroller.ApplicationDefinitionReconciler{
-		Client:     mgr.GetClient(),
-		Scheme:     mgr.GetScheme(),
-		Reconciler: reconciler.NewReconcilerWith(mgr.GetClient()),
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+		Reconciler: reconciler.NewReconcilerWith(mgr.GetClient(),
+			reconciler.WithEnableRecreateWorkload(),
+		),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ApplicationDefinition")
 		os.Exit(1)
