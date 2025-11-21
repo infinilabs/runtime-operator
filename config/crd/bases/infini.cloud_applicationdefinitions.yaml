@@ -32,6 +32,11 @@ spec:
       jsonPath: .spec.components[*].name
       name: Components
       type: string
+    - description: Configured replica counts for components.
+      jsonPath: .spec.components[*].properties.replicas
+      name: Replicas
+      priority: 1
+      type: string
     - jsonPath: .metadata.creationTimestamp
       name: Age
       type: date
@@ -100,6 +105,11 @@ spec:
                 x-kubernetes-list-map-keys:
                 - name
                 x-kubernetes-list-type: map
+              suspend:
+                description: |-
+                  Suspend indicates whether the application should be suspended (scaled to 0).
+                  When true, all components will be scaled to zero replicas.
+                type: boolean
             required:
             - components
             type: object
@@ -233,9 +243,17 @@ spec:
                 - Updating
                 - Running
                 - Degraded
+                - Suspended
                 - Deleting
                 - Failed
                 type: string
+              suspendedReplicas:
+                additionalProperties:
+                  format: int32
+                  type: integer
+                description: SuspendedReplicas records the replica count of components
+                  before they were suspended.
+                type: object
             type: object
         type: object
     served: true

@@ -94,14 +94,16 @@ type ApplicationDefinitionReconciler struct {
 //+kubebuilder:rbac:groups="",resources=endpoints,verbs=get;list;watch
 
 func (r *ApplicationDefinitionReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	logger := log.FromContext(ctx)
+
 	// check if the request is for the correct namespace
 	if req.NamespacedName.Namespace != common.Namespace {
 		return ctrl.Result{}, nil
 	}
 
-	logger := log.FromContext(ctx).WithValues("appdefinition", req.NamespacedName)
+	logger = logger.WithValues("appdefinition", req.NamespacedName)
 	startTime := time.Now()
-	logger.Info("Starting ApplicationDefinition reconciliation")
+	logger.V(1).Info("Starting ApplicationDefinition reconciliation")
 
 	// 1. Initialize state and fetch the ApplicationDefinition
 	state := &reconcileState{
@@ -111,6 +113,7 @@ func (r *ApplicationDefinitionReconciler) Reconcile(ctx context.Context, req ctr
 		applyResults:        make(map[string]kubeutil.ApplyResult),
 		unmarshalledConfigs: make(map[string]interface{}), // Initialize map [Added]
 	}
+
 	if err := r.Client.Get(ctx, req.NamespacedName, state.appDef); err != nil {
 		// Ignore not-found errors, since they can't be fixed by an immediate requeue.
 		// No need to change state if we don't find the object.
@@ -121,6 +124,13 @@ func (r *ApplicationDefinitionReconciler) Reconcile(ctx context.Context, req ctr
 		logger.Info("ApplicationDefinition resource not found, assuming deleted")
 		return ctrl.Result{}, nil // Object is gone, stop reconciliation
 	}
+
+	appDef := state.appDef
+	// Initialize Status if nil
+	if appDef.Status.Conditions == nil {
+		appDef.Status.Conditions = []metav1.Condition{}
+	}
+
 	// DeepCopy the status for comparison later
 	state.originalStatus = state.appDef.Status.DeepCopy()
 
@@ -143,11 +153,9 @@ func (r *ApplicationDefinitionReconciler) Reconcile(ctx context.Context, req ctr
 	// 2. Handle Finalizer logic
 	isDeleted, err := r.handleFinalizer(ctx, state)
 	if err != nil {
-		// Error updating finalizer, retry
 		return ctrl.Result{}, err
 	}
 	if isDeleted {
-		// Finalizer removed or object marked for deletion, stop reconciliation
 		return ctrl.Result{}, nil
 	}
 
@@ -162,6 +170,15 @@ func (r *ApplicationDefinitionReconciler) Reconcile(ctx context.Context, req ctr
 		return ctrl.Result{Requeue: true}, nil
 	}
 
+	// 3.5. Check if application is suspended
+	isSuspended := state.appDef.Spec.Suspend != nil && *state.appDef.Spec.Suspend
+	if isSuspended && state.appDef.Status.Phase == appv1.ApplicationPhaseSuspended {
+		// Already suspended and phase is set, skip reconciliation
+		logger.Info("Application is suspended, skipping reconciliation")
+		return ctrl.Result{}, nil
+	}
+	// If suspended but phase not yet set, continue to apply the suspend logic below
+
 	// 4. Process components: Unmarshal Config, Dispatch to Builder Strategy, Build Objects
 	processErr := r.processComponentsAndBuildObjects(ctx, state)
 	if processErr != nil {
@@ -169,7 +186,7 @@ func (r *ApplicationDefinitionReconciler) Reconcile(ctx context.Context, req ctr
 		state.firstError = processErr // Store the error
 		return r.handleReconcileError(ctx, state, "ProcessingFailed", processErr)
 	}
-	logger.Info("Object building successful", "objectCount", len(state.desiredObjects))
+	logger.V(1).Info("Object building successful", "objectCount", len(state.desiredObjects))
 
 	// 5. Apply generated resources using Server-Side Apply
 	applyErr := r.applyResources(ctx, state)
@@ -208,7 +225,12 @@ func (r *ApplicationDefinitionReconciler) Reconcile(ctx context.Context, req ctr
 	state.appDef.Status.Components = mapToSliceComponentStatus(state.componentStatuses) // Update components status list
 	_, statusUpdateErr := r.updateStatusIfNeeded(ctx, state.appDef, state.originalStatus)
 	if statusUpdateErr != nil {
-		logger.Error(statusUpdateErr, "Final status update failed")
+		// Distinguish between conflicts (expected, will retry) and other errors
+		if apierrors.IsConflict(statusUpdateErr) {
+			logger.V(1).Info("Status update conflict, will retry automatically")
+		} else {
+			logger.Error(statusUpdateErr, "Status update failed")
+		}
 		if state.firstError == nil {
 			// Record status update error if no other error occurred
 			state.firstError = statusUpdateErr
@@ -219,11 +241,10 @@ func (r *ApplicationDefinitionReconciler) Reconcile(ctx context.Context, req ctr
 
 	// 8. Log result and return
 	reconciliationDuration := time.Since(startTime)
-	logger.Info("Reconciliation finished",
+	logger.Info("Reconciliation completed",
 		"duration", reconciliationDuration.String(),
 		"phase", state.appDef.Status.Phase,
 		"requeue", needsRequeue,
-		"overallError", state.firstError, // Log the first encountered error
 	)
 
 	// Record reconciliation completion event
@@ -384,38 +405,39 @@ func (r *ApplicationDefinitionReconciler) processComponentsAndBuildObjects(ctx c
 
 		compStatus.Message = "Processing" // Update status message
 
-		// 2. Unmarshal specific configuration
-		appSpecificConfig, err := commonutil.UnmarshalAppSpecificConfig(appComp.Type, appComp.Properties)
-		if err != nil {
-			errMsg := fmt.Sprintf("Failed to unmarshal properties for component '%s' (type %s): %v", appComp.Name, appComp.Type, err)
-			compLogger.Error(err, errMsg)
-			r.updateComponentStatusWithError(compStatus, "ConfigUnmarshalFailed", errMsg)
-			return fmt.Errorf(errMsg)
-		}
-		// [Added] Store unmarshalled config for later use (e.g., health checks)
-		state.unmarshalledConfigs[appComp.Name] = appSpecificConfig
-
-		// 3. Get Builder Strategy
-		builderStrategy, ok := strategy.GetAppBuilderStrategy(appComp.Type)
-		if !ok {
-			errMsg := fmt.Sprintf("No builder strategy registered for component type '%s'", appComp.Type)
-			compLogger.Error(nil, errMsg) // No underlying error, just missing strategy
-			r.updateComponentStatusWithError(compStatus, "BuilderStrategyNotFound", errMsg)
-			return fmt.Errorf(errMsg)
-		}
-
-		// 4. Build K8s Objects using the strategy
 		compLogger.V(1).Info("Calling builder strategy BuildObjects")
-		builtObjects, err := builderStrategy.BuildObjects(ctx, r.Client, r.Scheme, appDef, appDef, &appComp, appSpecificConfig)
+
+		// 1. Get Builder Strategy
+		builder, found := strategy.GetAppBuilderStrategy(appComp.Type)
+		if !found {
+			err := fmt.Errorf("no builder strategy registered for component type: %s", appComp.Type)
+			logger.Error(err, "Builder strategy not found")
+			r.recordEventf(appDef, "BuildObjects", webrecorder.StatusFailure, "SyncComponent",
+				corev1.EventTypeWarning, "BuilderStrategyNotFound", err.Error())
+			return err
+		}
+
+		// 2. Unmarshal Specific Config
+		config, err := commonutil.UnmarshalAppSpecificConfig(appComp.Type, appComp.Properties)
 		if err != nil {
-			errMsg := fmt.Sprintf("Builder strategy failed for component '%s' (type %s): %v", appComp.Name, appComp.Type, err)
-			compLogger.Error(err, errMsg)
-			r.updateComponentStatusWithError(compStatus, "BuildObjectsFailed", errMsg)
-			return fmt.Errorf("builder strategy failed for component %s: %w", appComp.Name, err) // Wrap error
+			err = fmt.Errorf("failed to unmarshal properties for component '%s': %w", appComp.Name, err)
+			logger.Error(err, "Config unmarshal failed")
+			return err
+		}
+		state.unmarshalledConfigs[appComp.Name] = config // Store for later use
+
+		// 3. Build Objects
+		objects, err := builder.BuildObjects(ctx, r.Client, r.Scheme, state.appDef, state.appDef, &appDef.Spec.Components[i], config)
+		if err != nil {
+			err = fmt.Errorf("builder strategy failed for component %s: %w", appComp.Name, err)
+			logger.Error(err, "Builder strategy failed", "error", err)
+			r.recordEventf(appDef, "BuildObjects", webrecorder.StatusFailure, "SyncComponent",
+				corev1.EventTypeWarning, "BuilderFailed", err.Error())
+			return err
 		}
 
 		// Process built objects
-		for _, obj := range builtObjects {
+		for _, obj := range objects {
 			if obj == nil {
 				compLogger.Info("Warning: Builder strategy returned a nil object, skipping")
 				continue
@@ -454,8 +476,14 @@ func (r *ApplicationDefinitionReconciler) processComponentsAndBuildObjects(ctx c
 		}
 
 		compStatus.Message = "Built successfully" // Update status after successful build for this component
-		compLogger.V(1).Info("Component processed successfully", "builtObjectCount", len(builtObjects))
+		compLogger.V(1).Info("Component processed successfully", "builtObjectCount", len(objects))
 	}
+
+	// [Added] Handle Pause/Resume Logic
+	if err := r.handlePauseResume(ctx, state); err != nil {
+		return fmt.Errorf("failed to handle pause/resume: %w", err)
+	}
+
 	return nil // All components processed without critical error
 }
 
@@ -464,10 +492,10 @@ func (r *ApplicationDefinitionReconciler) applyResources(ctx context.Context, st
 	logger := log.FromContext(ctx)
 	appDef := state.appDef
 	if len(state.desiredObjects) == 0 {
-		logger.Info("No desired objects to apply.")
+		logger.V(1).Info("No desired objects to apply.")
 		return nil
 	}
-	logger.Info("Applying generated resources", "count", len(state.desiredObjects))
+	logger.V(1).Info("Applying generated resources", "count", len(state.desiredObjects))
 
 	var firstApplyErr error
 
@@ -549,7 +577,7 @@ func (r *ApplicationDefinitionReconciler) applyResources(ctx context.Context, st
 // checkHealthAndCalculateStatus checks K8s and Application level health. [Modified]
 func (r *ApplicationDefinitionReconciler) checkHealthAndCalculateStatus(ctx context.Context, state *reconcileState) (allComponentsReady bool, needsRequeue bool, firstCheckErr error) {
 	logger := log.FromContext(ctx)
-	logger.Info("Checking health of applied resources")
+	logger.V(1).Info("Checking health of applied resources")
 	allComponentsReady = true // Assume ready initially
 	needsRequeue = false      // Assume no requeue needed initially
 
@@ -642,6 +670,12 @@ func (r *ApplicationDefinitionReconciler) checkHealthAndCalculateStatus(ctx cont
 // determineFinalPhase sets the overall AppDef phase based on errors and readiness.
 func (r *ApplicationDefinitionReconciler) determineFinalPhase(state *reconcileState, allComponentsReady bool) {
 	currentPhase := state.appDef.Status.Phase
+
+	// If the application is suspended, don't override the Suspended phase
+	if currentPhase == appv1.ApplicationPhaseSuspended {
+		setCondition(state.appDef, metav1.Condition{Type: string(appv1.ConditionReady), Status: metav1.ConditionFalse, Reason: "Suspended", Message: "Application is intentionally suspended"})
+		return
+	}
 
 	if state.firstError != nil {
 		// If any critical error occurred during the reconcile cycle

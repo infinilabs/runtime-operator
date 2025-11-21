@@ -168,7 +168,7 @@ func (b *RuntimeBuilderStrategy) BuildObjects(ctx context.Context, k8sClient cli
 		if err != nil {
 			return nil, fmt.Errorf("failed to build ConfigMaps from ConfigFiles for %s: %w", instanceName, err)
 		}
-		
+
 		// Check if we need to restart the pod based on ConfigMap changes
 		var needRestart bool
 		for _, cmObj := range cmObjects {
@@ -304,7 +304,7 @@ func (b *RuntimeBuilderStrategy) BuildObjects(ctx context.Context, k8sClient cli
 		}
 	}
 
-	logger.Info("Finished building all Kubernetes objects for Runtime", "count", len(builtObjects))
+	logger.V(1).Info("Finished building all Kubernetes objects for Runtime", "count", len(builtObjects))
 	return builtObjects, nil // Success!
 }
 

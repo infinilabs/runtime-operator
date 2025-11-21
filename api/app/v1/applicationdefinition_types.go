@@ -46,7 +46,7 @@ const (
 // --- Constants for Phase and Conditions ---
 
 // ApplicationPhase represents the current state of the ApplicationDefinition reconciliation process.
-// +kubebuilder:validation:Enum=Pending;Creating;Updating;Running;Degraded;Deleting;Failed
+// +kubebuilder:validation:Enum=Pending;Creating;Updating;Running;Degraded;Suspended;Deleting;Failed
 type ApplicationPhase string
 
 const (
@@ -60,6 +60,8 @@ const (
 	ApplicationPhaseRunning ApplicationPhase = "Running"
 	// ApplicationPhaseDegraded indicates one or more components were previously ready but are now unhealthy or not ready.
 	ApplicationPhaseDegraded ApplicationPhase = "Degraded"
+	// ApplicationPhaseSuspended indicates the application is intentionally suspended (scaled to zero).
+	ApplicationPhaseSuspended ApplicationPhase = "Suspended"
 	// ApplicationPhaseDeleting indicates the application definition is being deleted.
 	ApplicationPhaseDeleting ApplicationPhase = "Deleting"
 	// ApplicationPhaseFailed indicates a critical error occurred during reconciliation.
@@ -110,6 +112,11 @@ type ApplicationDefinitionSpec struct {
 	// +listType=map
 	// +listMapKey=name
 	Components []ApplicationComponent `json:"components"`
+
+	// Suspend indicates whether the application should be suspended (scaled to 0).
+	// When true, all components will be scaled to zero replicas.
+	// +optional
+	Suspend *bool `json:"suspend,omitempty"`
 }
 
 // ComponentStatusReference provides a summary of the status of a deployed component's primary resource.
@@ -173,6 +180,10 @@ type ApplicationDefinitionStatus struct {
 	// +listMapKey=name
 	Components []ComponentStatusReference `json:"components,omitempty" listType:"map" listMapKey:"name"`
 
+	// SuspendedReplicas records the replica count of components before they were suspended.
+	// +optional
+	SuspendedReplicas map[string]int32 `json:"suspendedReplicas,omitempty"`
+
 	// Annotations holds additional metadata annotations for the application definition.
 	Annotations map[string]string `json:"annotations,omitempty"`
 }
@@ -185,6 +196,7 @@ type ApplicationDefinitionStatus struct {
 // +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=".status.phase",description="The current reconciliation phase of the application."
 // +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=".status.conditions[?(@.type=='Ready')].status",description="The overall readiness status of the application."
 // +kubebuilder:printcolumn:name="Components",type=string,JSONPath=".spec.components[*].name",description="Names of the components defined in the application."
+// +kubebuilder:printcolumn:name="Replicas",type=string,JSONPath=".spec.components[*].properties.replicas",description="Configured replica counts for components.",priority=1
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 // +kubebuilder:storageversion
 

@@ -380,7 +380,7 @@ func getInClusterNamespace() (string, error) {
 func init() {
 	// SchemeBuilder is typically used in CRD API group packages (api/v1, api/app/v1).
 	Namespace = "default"
-	// Get namespace from env in debug mode 
+	// Get namespace from env in debug mode
 	if ns := os.Getenv("NAMESPACE"); ns != "" {
 		Namespace = ns
 		return
