@@ -254,7 +254,7 @@ func (b *RuntimeBuilderStrategy) BuildObjects(ctx context.Context, k8sClient cli
 		regularServiceMetadata := builders.BuildObjectMeta(regularServiceName, namespace, commonLabels, runtimeConfig.Service.Annotations)
 		clientServicePorts := builders.BuildServicePorts(runtimeConfig.Service.Ports)
 
-		var serviceType corev1.ServiceType = corev1.ServiceTypeClusterIP // Default
+		var serviceType = corev1.ServiceTypeClusterIP // Default
 		if runtimeConfig.Service.Type != nil {
 			serviceType = *runtimeConfig.Service.Type
 		}
@@ -263,7 +263,12 @@ func (b *RuntimeBuilderStrategy) BuildObjects(ctx context.Context, k8sClient cli
 			Selector: selectorLabels,
 			Ports:    clientServicePorts,
 			Type:     serviceType,
-			// Other service spec fields...
+			// Session affinity configuration
+			SessionAffinityConfig: runtimeConfig.Service.SessionAffinityConfig,
+		}
+		// Set session affinity if specified
+		if runtimeConfig.Service.SessionAffinity != nil {
+			clientServiceSpec.SessionAffinity = *runtimeConfig.Service.SessionAffinity
 		}
 
 		logger.V(1).Info("Building Client Service object", "name", regularServiceName, "type", serviceType)
