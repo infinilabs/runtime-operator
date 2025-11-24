@@ -104,6 +104,16 @@ type ServiceSpecPart struct {
 	// Annotations specific to the Service resource.
 	// +optional
 	Annotations map[string]string `json:"annotations,omitempty"`
+
+	// SessionAffinity specifies the session affinity for the Service.
+	// Supports "ClientIP" and "None".
+	// Defaults to "None" if not specified.
+	// +optional
+	SessionAffinity *corev1.ServiceAffinity `json:"sessionAffinity,omitempty"`
+
+	// SessionAffinityConfig contains the configurations of session affinity.
+	// +optional
+	SessionAffinityConfig *corev1.SessionAffinityConfig `json:"sessionAffinityConfig,omitempty"`
 }
 
 // PersistenceSpec defines configuration for a shared PersistentVolumeClaim (for Deployment).
