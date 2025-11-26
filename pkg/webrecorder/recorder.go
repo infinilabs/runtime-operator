@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math"
 	"net/http"
 	"strings"
@@ -44,7 +45,7 @@ const (
 	WebhookRetryMaxAttempts = 3
 	// WebhookRetryInitialInterval is the base duration to wait before the first retry.
 	// Subsequent retries will use exponential backoff.
-	WebhookRetryInitialInterval = 2 * time.Second
+	WebhookRetryInitialInterval = 10 * time.Second
 )
 
 // ResourceChange tracks resource changes (CPU, memory, disk, replicas)
@@ -122,7 +123,7 @@ func NewWebhookEventRecorder(webhookURL, eventID, clusterID string) record.Event
 		clusterID:  clusterID,
 		logger:     log.Log.WithName("Web Event Recorder"),
 		httpClient: &http.Client{
-			Timeout: 5 * time.Second, // 降低超时时间，避免长时间阻塞
+			Timeout: 15 * time.Second,
 		},
 	}
 }
@@ -237,6 +238,10 @@ func (r *WebhookEventRecorder) sendEvent(data *WebhookEvent) {
 		}
 		defer resp.Body.Close()
 
+		// Read the response body
+		bodyBytes, err := io.ReadAll(resp.Body)
+		respBody := string(bodyBytes)
+
 		// On successful send, check the status code.
 		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 			r.logger.V(1).Info("Successfully sent event to webhook", "url", r.webhookURL, "status", resp.Status)
@@ -247,7 +252,8 @@ func (r *WebhookEventRecorder) sendEvent(data *WebhookEvent) {
 		r.logger.Error(nil, "Webhook endpoint returned error status",
 			"url", r.webhookURL,
 			"status_code", resp.StatusCode,
-			"status", resp.Status)
+			"status", resp.Status,
+			"response_body", respBody)
 	}
 
 	// If the loop completes, all retries have failed.
