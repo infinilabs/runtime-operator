@@ -229,7 +229,6 @@ func (r *WebhookEventRecorder) sendEvent(data *WebhookEvent) {
 		resp, err := r.httpClient.Do(req)
 		if err != nil {
 			r.logger.Error(err, "Failed to send webhook event", "url", r.webhookURL)
-			// 快速失败：如果是连接拒绝或EOF，不再重试
 			if isNetworkError(err) {
 				r.logger.Info("Network error detected, skipping remaining retries", "error", err.Error())
 				return
@@ -244,7 +243,7 @@ func (r *WebhookEventRecorder) sendEvent(data *WebhookEvent) {
 
 		// On successful send, check the status code.
 		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-			r.logger.V(1).Info("Successfully sent event to webhook", "url", r.webhookURL, "status", resp.Status)
+			r.logger.Info("Successfully sent event to webhook", "url", r.webhookURL, "status", resp.Status)
 			return // Success, exit the function.
 		}
 

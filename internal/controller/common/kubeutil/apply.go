@@ -30,6 +30,7 @@ import (
 	"fmt"
 
 	"github.com/cisco-open/operator-tools/pkg/reconciler"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil" // For OperationResult
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -155,7 +156,11 @@ func ApplyObjectV2(ctx context.Context, k8sClient reconciler.ResourceReconciler,
 	_, err := k8sClient.ReconcileResource(obj, reconciler.StatePresent)
 	if err != nil {
 		// Log the error if the apply operation fails.
-		logger.Error(err, "Failed to apply object using Server-Side Apply")
+		if apierrors.IsConflict(err) {
+			logger.V(1).Info("Optimistic lock conflict detected when applying resource", "kind", gvk.Kind, "name", objKey.Name, "namespace", objKey.Namespace)
+		} else {
+			logger.Error(err, "Failed to apply object using Server-Side Apply", "kind", gvk.Kind, "name", objKey.Name, "namespace", objKey.Namespace)
+		}
 		return ApplyResult{Error: err}
 	}
 
