@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math"
 	"net/http"
 	"strings"
@@ -44,7 +45,7 @@ const (
 	WebhookRetryMaxAttempts = 3
 	// WebhookRetryInitialInterval is the base duration to wait before the first retry.
 	// Subsequent retries will use exponential backoff.
-	WebhookRetryInitialInterval = 2 * time.Second
+	WebhookRetryInitialInterval = 10 * time.Second
 )
 
 // ResourceChange tracks resource changes (CPU, memory, disk, replicas)
@@ -122,7 +123,7 @@ func NewWebhookEventRecorder(webhookURL, eventID, clusterID string) record.Event
 		clusterID:  clusterID,
 		logger:     log.Log.WithName("Web Event Recorder"),
 		httpClient: &http.Client{
-			Timeout: 5 * time.Second, // 降低超时时间，避免长时间阻塞
+			Timeout: 15 * time.Second,
 		},
 	}
 }
@@ -207,6 +208,7 @@ func (r *WebhookEventRecorder) sendEvent(data *WebhookEvent) {
 			// Calculate exponential backoff: 2s, 4s, 8s
 			backoffDuration := WebhookRetryInitialInterval * time.Duration(math.Pow(2, float64(attempt-1)))
 			r.logger.Info("Webhook send failed. Retrying...",
+				"url", r.webhookURL,
 				"attempt", fmt.Sprintf("%d/%d", attempt+1, WebhookRetryMaxAttempts),
 				"retry_after", backoffDuration.String())
 			time.Sleep(backoffDuration)
@@ -226,7 +228,7 @@ func (r *WebhookEventRecorder) sendEvent(data *WebhookEvent) {
 
 		resp, err := r.httpClient.Do(req)
 		if err != nil {
-			r.logger.V(1).Info("Failed to send event to webhook", "url", r.webhookURL, "error", err.Error())
+			r.logger.Error(err, "Failed to send webhook event", "url", r.webhookURL)
 			// 快速失败：如果是连接拒绝或EOF，不再重试
 			if isNetworkError(err) {
 				r.logger.Info("Network error detected, skipping remaining retries", "error", err.Error())
@@ -236,6 +238,10 @@ func (r *WebhookEventRecorder) sendEvent(data *WebhookEvent) {
 		}
 		defer resp.Body.Close()
 
+		// Read the response body
+		bodyBytes, err := io.ReadAll(resp.Body)
+		respBody := string(bodyBytes)
+
 		// On successful send, check the status code.
 		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 			r.logger.V(1).Info("Successfully sent event to webhook", "url", r.webhookURL, "status", resp.Status)
@@ -243,11 +249,16 @@ func (r *WebhookEventRecorder) sendEvent(data *WebhookEvent) {
 		}
 
 		// If the status code indicates an error, treat it as a failure.
-		r.logger.V(1).Info("Webhook endpoint returned an error", "status", resp.Status)
+		r.logger.Error(nil, "Webhook endpoint returned error status",
+			"url", r.webhookURL,
+			"status_code", resp.StatusCode,
+			"status", resp.Status,
+			"response_body", respBody)
 	}
 
 	// If the loop completes, all retries have failed.
-	r.logger.V(1).Info("Failed to send event to webhook after all retries, dropping the event.",
+	r.logger.Error(nil, "Failed to send webhook event after all retries, dropping the event.",
+		"url", r.webhookURL,
 		"max_retries", WebhookRetryMaxAttempts)
 }
 

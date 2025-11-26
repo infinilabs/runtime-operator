@@ -329,12 +329,28 @@ func (r *ApplicationDefinitionReconciler) handleFinalizer(ctx context.Context, s
 		if !controllerutil.ContainsFinalizer(appDef, appDefFinalizer) {
 			logger.Info("Adding Finalizer")
 			controllerutil.AddFinalizer(appDef, appDefFinalizer)
-			if err := r.Client.Update(ctx, appDef); err != nil {
-				logger.Error(err, "Failed to add finalizer")
-				return false, err // Return error to retry update
+			// Retry loop for adding finalizer
+			for i := 0; i < 3; i++ {
+				if err := r.Client.Update(ctx, appDef); err != nil {
+					if apierrors.IsConflict(err) {
+						logger.Info("Conflict adding finalizer, retrying...", "attempt", i+1)
+						// Re-fetch the latest version
+						if fetchErr := r.Client.Get(ctx, client.ObjectKeyFromObject(appDef), appDef); fetchErr != nil {
+							logger.Error(fetchErr, "Failed to re-fetch appDef after conflict")
+							return false, fetchErr
+						}
+						// Re-add the finalizer since appDef was re-fetched
+						controllerutil.AddFinalizer(appDef, appDefFinalizer)
+						continue
+					}
+					logger.Error(err, "Failed to add finalizer")
+					return false, err
+				}
+				// Success, finalizer added
+				return false, nil
 			}
-			// Finalizer added, no further action needed in this step regarding deletion
-			return false, nil
+			// If we get here, all retries failed
+			return false, fmt.Errorf("failed to add finalizer after 3 attempts")
 		}
 	} else {
 		// Object IS being deleted
@@ -352,11 +368,27 @@ func (r *ApplicationDefinitionReconciler) handleFinalizer(ctx context.Context, s
 
 			logger.Info("Cleanup complete, removing Finalizer")
 			controllerutil.RemoveFinalizer(appDef, appDefFinalizer)
-			if err := r.Client.Update(ctx, appDef); err != nil {
-				logger.Error(err, "Failed to remove finalizer")
-				return true, err // isDeleted=true, return error to retry update
+			// Retry loop for removing finalizer
+			for i := 0; i < 3; i++ {
+				if err := r.Client.Update(ctx, appDef); err != nil {
+					if apierrors.IsConflict(err) {
+						logger.Info("Conflict removing finalizer, retrying...", "attempt", i+1)
+						// Re-fetch the latest version
+						if fetchErr := r.Client.Get(ctx, client.ObjectKeyFromObject(appDef), appDef); fetchErr != nil {
+							logger.Error(fetchErr, "Failed to re-fetch appDef after conflict")
+							return true, fetchErr
+						}
+						// Re-remove the finalizer since appDef was re-fetched
+						controllerutil.RemoveFinalizer(appDef, appDefFinalizer)
+						continue
+					}
+					logger.Error(err, "Failed to remove finalizer")
+					return true, err
+				}
+				// Success, finalizer removed
+				logger.Info("Finalizer removed successfully")
+				break
 			}
-			logger.Info("Finalizer removed successfully")
 		}
 		// Object is being deleted, stop further reconciliation
 		return true, nil
@@ -378,14 +410,37 @@ func (r *ApplicationDefinitionReconciler) setInitialPhase(ctx context.Context, s
 			Message: "Starting component processing"})
 
 		// 需要持久化更新到cr中，否则status一直不会更新，不会触发后续的apply
-		err := r.Client.Status().Update(ctx, state.appDef)
-		if err != nil {
-			return false, err
+		// Retry loop for status update
+		for i := 0; i < 3; i++ {
+			err := r.Client.Status().Update(ctx, state.appDef)
+			if err != nil {
+				if apierrors.IsConflict(err) {
+					logger := log.FromContext(ctx)
+					logger.Info("Conflict updating status in setInitialPhase, retrying...", "attempt", i+1)
+					// Re-fetch the latest status
+					if fetchErr := r.Client.Get(ctx, client.ObjectKeyFromObject(state.appDef), state.appDef); fetchErr != nil {
+						logger.Error(fetchErr, "Failed to re-fetch appDef after status update conflict")
+						return false, fetchErr
+					}
+					// Reapply the status changes since appDef was re-fetched
+					state.appDef.Status.Phase = appv1.ApplicationPhaseCreating
+					setCondition(state.appDef, metav1.Condition{
+						Type:    string(appv1.ConditionReady),
+						Status:  metav1.ConditionFalse,
+						Reason:  "Processing",
+						Message: "Starting component processing"})
+					continue
+				}
+				return false, err
+			}
+			// Success, status updated
+			r.recordEvent(state.appDef, "Processing", webrecorder.StatusInProgress, "SyncComponent",
+				corev1.EventTypeNormal, "Processing", "Starting component processing")
+			// Status will be updated later if needed, just return true to signal requeue
+			return true, nil // Signal that phase changed and might need status update + requeue
 		}
-		r.recordEvent(state.appDef, "Processing", webrecorder.StatusInProgress, "SyncComponent",
-			corev1.EventTypeNormal, "Processing", "Starting component processing")
-		// Status will be updated later if needed, just return true to signal requeue
-		return true, nil // Signal that phase changed and might need status update + requeue
+		// If we get here, all retries failed
+		return false, fmt.Errorf("failed to update status in setInitialPhase after 3 attempts")
 	}
 	return false, nil // Phase already set, no update needed now
 }
@@ -761,18 +816,35 @@ func (r *ApplicationDefinitionReconciler) updateStatusIfNeeded(ctx context.Conte
 		return false, nil // No changes detected
 	}
 
-	// Status has changed, attempt update
+	// Status has changed, attempt update with retry
 	logger.V(1).Info("Status has changed, attempting update.", "newPhase", currentApp.Status.Phase)
-	if err := r.Client.Status().Update(ctx, currentApp); err != nil {
-		if apierrors.IsConflict(err) {
-			logger.Info("Status update conflict detected, requeuing for retry", "error", err.Error())
-			return false, err // Return conflict error for immediate requeue
+
+	// Create a copy of the desired status to reapply if needed
+	desiredStatus := currentApp.Status.DeepCopy()
+
+	for i := 0; i < 3; i++ {
+		if err := r.Client.Status().Update(ctx, currentApp); err != nil {
+			if apierrors.IsConflict(err) {
+				logger.Info("Status update conflict detected, retrying...", "attempt", i+1, "error", err.Error())
+				// Re-fetch the latest version
+				if fetchErr := r.Client.Get(ctx, client.ObjectKeyFromObject(currentApp), currentApp); fetchErr != nil {
+					logger.Error(fetchErr, "Failed to re-fetch appDef after status update conflict")
+					return false, fetchErr
+				}
+				// Reapply the desired status changes since currentApp was re-fetched
+				currentApp.Status = *desiredStatus.DeepCopy()
+				// Update ObservedGeneration again since we're overwriting the status
+				currentApp.Status.ObservedGeneration = currentApp.Generation
+				continue
+			}
+			logger.Error(err, "Failed to update ApplicationDefinition status")
+			return false, err // Return other status update errors
 		}
-		logger.Error(err, "Failed to update ApplicationDefinition status")
-		return false, err // Return other status update errors
+		logger.V(1).Info("ApplicationDefinition status updated successfully")
+		return true, nil // Status updated successfully
 	}
-	logger.V(1).Info("ApplicationDefinition status updated successfully")
-	return true, nil // Status updated successfully
+	// If we get here, all retries failed
+	return false, fmt.Errorf("failed to update status after 3 attempts")
 }
 
 // --- Status Comparison Helpers ---
