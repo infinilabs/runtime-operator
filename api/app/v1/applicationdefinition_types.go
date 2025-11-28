@@ -184,6 +184,11 @@ type ApplicationDefinitionStatus struct {
 	// +optional
 	SuspendedReplicas map[string]int32 `json:"suspendedReplicas,omitempty"`
 
+	// LastChangeID records the last change ID that was processed and sent to the webhook.
+	// This is used to avoid sending duplicate webhook events for the same change ID.
+	// +optional
+	LastChangeID string `json:"lastChangeID,omitempty"`
+
 	// Annotations holds additional metadata annotations for the application definition.
 	Annotations map[string]string `json:"annotations,omitempty"`
 }
