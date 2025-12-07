@@ -281,6 +281,7 @@ func (r *ApplicationDefinitionReconciler) Reconcile(ctx context.Context, req ctr
 // initializeComponentStatuses populates the initial status map.
 func (r *ApplicationDefinitionReconciler) initializeComponentStatuses(state *reconcileState) error {
 	names := make(map[string]bool)
+	// Add statuses for current components in spec
 	for _, comp := range state.appDef.Spec.Components {
 		if comp.Name == "" {
 			return fmt.Errorf("component name cannot be empty in spec")
@@ -296,8 +297,14 @@ func (r *ApplicationDefinitionReconciler) initializeComponentStatuses(state *rec
 			Message: "Initializing",
 		}
 	}
-	// TODO: Optionally remove statuses for components that are no longer in the spec?
-	// This might be better handled by K8s GC based on owner refs.
+
+	// Remove statuses for components no longer in the spec
+	for compName := range state.componentStatuses {
+		if !names[compName] {
+			delete(state.componentStatuses, compName)
+		}
+	}
+
 	return nil
 }
 
@@ -305,17 +312,46 @@ func (r *ApplicationDefinitionReconciler) initializeComponentStatuses(state *rec
 func (r *ApplicationDefinitionReconciler) handleEmptyApp(ctx context.Context, state *reconcileState) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 	logger.Info("ApplicationDefinition has no components defined.")
+
+	// --- Garbage collect orphaned resources previously managed by this AppDef ---
+	// Delete all resources labeled with this app name
+	resourceTypes := []client.Object{
+		&appsv1.Deployment{},
+		&appsv1.StatefulSet{},
+		&corev1.Service{},
+		&corev1.PersistentVolumeClaim{},
+		&corev1.ConfigMap{},
+		&corev1.Secret{},
+		&corev1.ServiceAccount{},
+	}
+
+	for _, resourceType := range resourceTypes {
+		// Delete each resource type using DeleteAllOf
+		deleteOpts := []client.DeleteAllOfOption{
+			client.InNamespace(state.appDef.Namespace),
+			client.MatchingLabels{
+				appNameLabel: state.appDef.Name,
+			},
+		}
+
+		// Delete all resources of this type with matching labels
+		if err := r.Client.DeleteAllOf(ctx, resourceType, deleteOpts...); err != nil {
+			logger.Error(err, "Failed to garbage collect resources", "resourceType", resourceType.GetObjectKind().GroupVersionKind().Kind)
+			continue
+		}
+		logger.Info("Garbage collected resources", "resourceType", resourceType.GetObjectKind().GroupVersionKind().Kind)
+	}
+
+	// --- Update status ---
 	state.appDef.Status.Phase = appv1.ApplicationPhaseRunning // Consider it Available if empty
 	state.appDef.Status.Components = []appv1.ComponentStatusReference{}
-	setCondition(state.appDef, metav1.Condition{Type: string(appv1.ConditionReady), Status: metav1.ConditionTrue, Reason: "NoComponentsDefined", Message: "Application has no components defined"})
-
-	// TODO: Implement logic to garbage collect orphaned resources previously managed by this AppDef?
-	// This is complex and relies on labels/ownerRefs. For now, assume GC handles it.
+	setCondition(state.appDef, metav1.Condition{Type: string(appv1.ConditionReady), Status: metav1.ConditionTrue, Reason: "NoComponentsDefined", Message: "Application has no components defined, orphaned resources cleaned up"})
 
 	if _, updateErr := r.updateStatusIfNeeded(ctx, state.appDef, state.originalStatus); updateErr != nil {
 		logger.Error(updateErr, "Status update failed for empty app")
 		return ctrl.Result{}, updateErr // Retry status update
 	}
+
 	return ctrl.Result{}, nil // Success, no requeue needed
 }
 
@@ -358,12 +394,30 @@ func (r *ApplicationDefinitionReconciler) handleFinalizer(ctx context.Context, s
 			logger.Info("Performing cleanup before finalizer removal")
 
 			// --- Add Application Cleanup Logic Here ---
-			// Example: Delete external resources, notify external systems, etc.
-			// If cleanup fails, return an error to retry cleanup.
-			// if err := r.cleanupExternalResources(ctx, appDef); err != nil {
-			//     logger.Error(err, "External resource cleanup failed")
-			//     return true, err // isDeleted=true because deletion is in progress, return error to retry cleanup
-			// }
+			// Clean up all PVCs associated with this appdef
+			logger.Info("Cleaning up all PVCs associated with the application")
+			pvcList := &corev1.PersistentVolumeClaimList{}
+			listOpts := []client.ListOption{
+				client.InNamespace(appDef.Namespace),
+				client.MatchingLabels{
+					appNameLabel: appDef.Name, // Match all PVCs labeled with this app name
+				},
+			}
+
+			if err := r.Client.List(ctx, pvcList, listOpts...); err != nil {
+				logger.Error(err, "Failed to list PVCs for cleanup")
+				return true, err
+			}
+
+			// Delete each PVC
+			for _, pvc := range pvcList.Items {
+				pvcCopy := pvc // Create a copy to avoid pointer issues
+				logger.Info("Deleting PVC", "name", pvcCopy.Name)
+				if err := r.Client.Delete(ctx, &pvcCopy); err != nil && !apierrors.IsNotFound(err) {
+					logger.Error(err, "Failed to delete PVC", "name", pvcCopy.Name)
+					return true, err
+				}
+			}
 			// -----------------------------------------
 
 			logger.Info("Cleanup complete, removing Finalizer")
