@@ -219,6 +219,14 @@ func (r *ApplicationDefinitionReconciler) Reconcile(ctx context.Context, req ctr
 	// 7. Determine final phase and update status if needed
 	r.determineFinalPhase(state, allReady)                                              // Update phase based on errors and readiness
 	state.appDef.Status.Components = mapToSliceComponentStatus(state.componentStatuses) // Update components status list
+
+	// Update LastChangeID in status if reconciliation was successful
+	if allReady && state.firstError == nil {
+		if changeID, exists := state.appDef.Annotations[appv1.AnnotationChangeID]; exists && changeID != "" {
+			state.appDef.Status.LastChangeID = changeID
+		}
+	}
+
 	_, statusUpdateErr := r.updateStatusIfNeeded(ctx, state.appDef, state.originalStatus)
 	if statusUpdateErr != nil {
 		// Distinguish between conflicts (expected, will retry) and other errors
@@ -861,7 +869,8 @@ func (r *ApplicationDefinitionReconciler) updateStatusIfNeeded(ctx context.Conte
 	if currentApp.Status.Phase == originalStatus.Phase &&
 		conditionsEqual(currentApp.Status.Conditions, originalStatus.Conditions) &&
 		componentStatusesEqual(currentApp.Status.Components, originalStatus.Components) &&
-		currentApp.Status.ObservedGeneration == originalStatus.ObservedGeneration {
+		currentApp.Status.ObservedGeneration == originalStatus.ObservedGeneration &&
+		currentApp.Status.LastChangeID == originalStatus.LastChangeID {
 		logger.V(1).Info("Status unchanged, skipping update.")
 		return false, nil // No changes detected
 	}
@@ -1095,6 +1104,14 @@ func (r *ApplicationDefinitionReconciler) recordEvent(app *appv1.ApplicationDefi
 	recorder := r.getEventRecorder(app)
 
 	if wr, ok := recorder.(*webrecorder.WebhookEventRecorder); ok {
+		// Get current change ID from annotations
+		currentChangeID := app.Annotations[appv1.AnnotationChangeID]
+
+		// Check if this change ID has already been processed
+		if app.Status.LastChangeID == currentChangeID {
+			// Skip sending duplicate webhook event for the same change ID
+			return
+		}
 		annotations := map[string]string{
 			webrecorder.PhaseKey:  phase,
 			webrecorder.StatusKey: status,
@@ -1111,6 +1128,14 @@ func (r *ApplicationDefinitionReconciler) recordEventf(app *appv1.ApplicationDef
 	recorder := r.getEventRecorder(app)
 
 	if wr, ok := recorder.(*webrecorder.WebhookEventRecorder); ok {
+		// Get current change ID from annotations
+		currentChangeID := app.Annotations[appv1.AnnotationChangeID]
+
+		// Check if this change ID has already been processed
+		if app.Status.LastChangeID == currentChangeID {
+			// Skip sending duplicate webhook event for the same change ID
+			return
+		}
 		annotations := map[string]string{
 			webrecorder.PhaseKey:  phase,
 			webrecorder.StatusKey: status,
