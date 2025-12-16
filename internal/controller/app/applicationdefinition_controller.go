@@ -526,7 +526,7 @@ func (r *ApplicationDefinitionReconciler) processComponentsAndBuildObjects(ctx c
 			err := fmt.Errorf("no builder strategy registered for component type: %s", appComp.Type)
 			logger.Error(err, "Builder strategy not found")
 			r.recordEventf(appDef, "BuildObjects", webrecorder.StatusFailure, "SyncComponent",
-				corev1.EventTypeWarning, "BuilderStrategyNotFound", err.Error())
+				corev1.EventTypeWarning, "BuilderStrategyNotFound", "%s", err.Error())
 			return err
 		}
 
@@ -671,7 +671,7 @@ func (r *ApplicationDefinitionReconciler) applyResources(ctx context.Context, st
 				errMsg := fmt.Sprintf("Failed to apply resource %s %s: %v", gvk.Kind, objKey.String(), applyResult.Error)
 				logger.Error(applyResult.Error, errMsg)
 				r.recordEventf(appDef, "ApplyResources", webrecorder.StatusFailure, "SyncComponent",
-					corev1.EventTypeWarning, "ResourceApplyFailed", errMsg)
+					corev1.EventTypeWarning, "ResourceApplyFailed", "%s", errMsg)
 				if firstApplyErr == nil {
 					firstApplyErr = applyResult.Error
 				}
