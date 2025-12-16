@@ -107,7 +107,7 @@ var _ = Describe("ApplicationDefinition Controller", func() {
 			controllerReconciler := &ApplicationDefinitionReconciler{
 				Client:     k8sClient,
 				Scheme:     k8sClient.Scheme(),
-				Recorder:   record.NewFakeRecorder(10),
+				Recorder:   record.NewFakeRecorder(100),
 				Reconciler: reconciler.NewReconcilerWith(k8sClient),
 			}
 
@@ -121,7 +121,7 @@ var _ = Describe("ApplicationDefinition Controller", func() {
 			controllerReconciler := &ApplicationDefinitionReconciler{
 				Client:     k8sClient,
 				Scheme:     k8sClient.Scheme(),
-				Recorder:   record.NewFakeRecorder(10),
+				Recorder:   record.NewFakeRecorder(100),
 				Reconciler: reconciler.NewReconcilerWith(k8sClient),
 			}
 

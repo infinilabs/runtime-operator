@@ -305,7 +305,7 @@ func (r *WebhookEventRecorder) sendEvent(data *WebhookEvent) {
 		defer resp.Body.Close()
 
 		// Read the response body
-		bodyBytes, err := io.ReadAll(resp.Body)
+		bodyBytes, _ := io.ReadAll(resp.Body)
 		respBody := string(bodyBytes)
 
 		// On successful send, check the status code.
