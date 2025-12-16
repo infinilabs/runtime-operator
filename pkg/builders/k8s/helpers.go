@@ -82,17 +82,18 @@ func DeriveContainerName(compType string) string {
 	// Ensure start/end alphanumeric (basic check)
 	if len(name) > 0 {
 		firstChar := name[0]
-		lastChar := name[len(name)-1]
 		if !((firstChar >= 'a' && firstChar <= 'z') || (firstChar >= '0' && firstChar <= '9')) {
 			name = "c-" + name // Prepend if starts invalidly
 			if len(name) > 63 {
 				name = name[:63]
-			} // Re-check length
+			}
 		}
 		// Re-check last char after potential prepend
-		lastChar = name[len(name)-1]
-		if !((lastChar >= 'a' && lastChar <= 'z') || (lastChar >= '0' && lastChar <= '9')) {
-			name = name[:len(name)-1] + "c" // Append if ends invalidly (replace last char)
+		if len(name) > 0 {
+			lastChar := name[len(name)-1]
+			if !((lastChar >= 'a' && lastChar <= 'z') || (lastChar >= '0' && lastChar <= '9')) {
+				name = name[:len(name)-1] + "c" // Append if ends invalidly (replace last char)
+			}
 		}
 	} else {
 		name = "container" // Default if somehow empty
@@ -330,15 +331,11 @@ func MergeMaps(base, override map[string]string) map[string]string {
 		return nil // Or return empty map: make(map[string]string)
 	}
 	merged := make(map[string]string)
-	if base != nil {
-		for k, v := range base {
-			merged[k] = v
-		}
+	for k, v := range base {
+		merged[k] = v
 	}
-	if override != nil {
-		for k, v := range override {
-			merged[k] = v // Override keys from base
-		}
+	for k, v := range override {
+		merged[k] = v // Override keys from base
 	}
 	return merged
 }

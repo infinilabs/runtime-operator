@@ -80,7 +80,7 @@ func (b *RuntimeBuilderStrategy) verifyParameters(runtimeConfig *common.RuntimeC
 	if runtimeConfig.Image == nil || (runtimeConfig.Image.Repository == "" && runtimeConfig.Image.Tag == "") {
 		return fmt.Errorf("runtime config is missing required 'image' for component '%s'", appComp.Name)
 	}
-	if runtimeConfig.Ports == nil || len(runtimeConfig.Ports) == 0 {
+	if len(runtimeConfig.Ports) == 0 {
 		return fmt.Errorf("runtime config is missing required 'ports' configuration for component '%s'", appComp.Name)
 	}
 	isStatefulSet := b.GetWorkloadGVK().Kind == StatefulSetType
@@ -161,7 +161,7 @@ func (b *RuntimeBuilderStrategy) BuildObjects(ctx context.Context, k8sClient cli
 	podLabels := builders.MergeMaps(commonLabels, selectorLabels)
 	var podAnnotations = map[string]string{}
 	// --- 5. Build ConfigMaps/Secrets from Config File Data ---
-	if runtimeConfig.ConfigFiles != nil && len(runtimeConfig.ConfigFiles) > 0 {
+	if len(runtimeConfig.ConfigFiles) > 0 {
 		configMapResourceName := resourceName + "-config"
 		logger.V(1).Info("Building ConfigMap object", "name", configMapResourceName)
 		cmObjects, err := builders.BuildConfigMapsFromAppData(runtimeConfig.ConfigFiles, configMapResourceName, namespace, commonLabels)
@@ -467,7 +467,7 @@ func ShouldBuildClientService(svcConfig *common.ServiceSpecPart) bool {
 	if svcConfig == nil {
 		return false
 	}
-	if svcConfig.Ports == nil || len(svcConfig.Ports) == 0 {
+	if len(svcConfig.Ports) == 0 {
 		// If no ports specified in Service section, don't build client service.
 		return false
 	}
