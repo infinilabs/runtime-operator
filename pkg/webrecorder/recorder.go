@@ -3,12 +3,14 @@ package webrecorder
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io"
 	"math"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -111,13 +113,17 @@ type WebhookEventRecorder struct {
 	clusterID string
 	// logger is used for internal logging of the recorder itself.
 	logger logr.Logger
+	// sentEvents tracks sent events to avoid duplicates (key: hash of changeId+phase+step+status)
+	sentEvents sync.Map
+	// eventTTL is how long to keep track of sent events (default: 1 hour)
+	eventTTL time.Duration
 }
 
 // NewWebhookEventRecorder creates a new WebhookEventRecorder.
 // It requires a webhookURL, identifiers for the event source (eventID) and cluster (clusterID),
 // and an existing recorder (typically from the controller-runtime manager) to wrap.
 func NewWebhookEventRecorder(webhookURL, eventID, clusterID string) record.EventRecorder {
-	return &WebhookEventRecorder{
+	wr := &WebhookEventRecorder{
 		webhookURL: webhookURL,
 		eventID:    eventID,
 		clusterID:  clusterID,
@@ -125,7 +131,53 @@ func NewWebhookEventRecorder(webhookURL, eventID, clusterID string) record.Event
 		httpClient: &http.Client{
 			Timeout: 15 * time.Second,
 		},
+		eventTTL: 1 * time.Hour, // Keep track of sent events for 1 hour
 	}
+
+	// Start cleanup goroutine to remove old entries
+	go wr.cleanupOldEvents()
+
+	return wr
+}
+
+// cleanupOldEvents periodically cleans up old event entries from the sentEvents map
+func (r *WebhookEventRecorder) cleanupOldEvents() {
+	ticker := time.NewTicker(10 * time.Minute)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		now := time.Now()
+		r.sentEvents.Range(func(key, value interface{}) bool {
+			if sentTime, ok := value.(time.Time); ok {
+				if now.Sub(sentTime) > r.eventTTL {
+					r.sentEvents.Delete(key)
+				}
+			}
+			return true
+		})
+	}
+}
+
+// generateEventKey creates a unique key for event deduplication
+// Key is based on: changeId + phase + step + status
+func (r *WebhookEventRecorder) generateEventKey(changeID, phase, step, status string) string {
+	data := fmt.Sprintf("%s:%s:%s:%s", changeID, phase, step, status)
+	hash := sha256.Sum256([]byte(data))
+	return fmt.Sprintf("%x", hash[:16]) // Use first 16 bytes of hash
+}
+
+// shouldSendEvent checks if the event should be sent (not a duplicate)
+func (r *WebhookEventRecorder) shouldSendEvent(changeID, phase, step, status string) bool {
+	key := r.generateEventKey(changeID, phase, step, status)
+
+	// Check if we've already sent this event
+	if _, exists := r.sentEvents.Load(key); exists {
+		return false // Duplicate, don't send
+	}
+
+	// Mark as sent
+	r.sentEvents.Store(key, time.Now())
+	return true
 }
 
 // Event passes a simple event through to the underlying recorder.
@@ -175,17 +227,32 @@ func (r *WebhookEventRecorder) AnnotatedEventfWithResourceChange(object runtime.
 		return
 	}
 
+	// Extract event metadata for deduplication
+	phase := annotations[PhaseKey]
+	status := annotations[StatusKey]
+	step := annotations[StepKey]
+
+	// Check if we should send this event (deduplication)
+	if !r.shouldSendEvent(r.eventID, phase, step, status) {
+		r.logger.V(1).Info("Skipping duplicate event",
+			"changeID", r.eventID,
+			"phase", phase,
+			"step", step,
+			"status", status)
+		return
+	}
+
 	// Construct the structured event payload.
 	eventData := &WebhookEvent{
 		ChangeID:       r.eventID,
 		ClusterID:      r.clusterID,
-		Phase:          annotations[PhaseKey],
+		Phase:          phase,
 		Level:          eventtype,
 		Message:        fmt.Sprintf(messageFmt, args...),
 		Timestamp:      time.Now().UTC().Format(time.RFC3339Nano),
 		Payload:        map[string]string{"reason": reason},
-		Status:         annotations[StatusKey],
-		Step:           annotations[StepKey],
+		Status:         status,
+		Step:           step,
 		ResourceChange: resourceChange,
 	}
 

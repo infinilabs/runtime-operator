@@ -134,10 +134,6 @@ func (r *ApplicationDefinitionReconciler) Reconcile(ctx context.Context, req ctr
 	// DeepCopy the status for comparison later
 	state.originalStatus = state.appDef.Status.DeepCopy()
 
-	// Record reconciliation start event
-	r.recordEvent(state.appDef, "Reconcile", webrecorder.StatusInProgress, "SyncComponent",
-		corev1.EventTypeNormal, "ReconcileStarted", "Starting reconciliation")
-
 	// Initialize component status map based on current spec
 	if err := r.initializeComponentStatuses(state); err != nil {
 		// Initialization error is critical, update status and stop
@@ -247,7 +243,7 @@ func (r *ApplicationDefinitionReconciler) Reconcile(ctx context.Context, req ctr
 		"requeue", needsRequeue,
 	)
 
-	// Record reconciliation completion event
+	// Record reconciliation completion event (deduplication handled by webrecorder)
 	if state.firstError != nil {
 		r.recordEventf(state.appDef, "Reconcile", webrecorder.StatusFailure, "SyncComponent",
 			corev1.EventTypeWarning, "ReconcileFailed", "Reconciliation failed: %v", state.firstError)

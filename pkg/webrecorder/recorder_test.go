@@ -294,3 +294,78 @@ func (t *testObject) GetObjectKind() schema.ObjectKind {
 func (t *testObject) DeepCopyObject() runtime.Object {
 	return &testObject{name: t.name}
 }
+
+func TestEventDeduplication(t *testing.T) {
+	// Track number of requests received
+	var requestCount int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&requestCount, 1)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	recorder := NewWebhookEventRecorder(server.URL, "change-123", "cluster-test")
+	webRecorder := recorder.(*WebhookEventRecorder)
+
+	// Create a mock object
+	obj := &testObject{name: "test-app"}
+
+	annotations := map[string]string{
+		PhaseKey:  "Reconcile",
+		StatusKey: StatusSuccess,
+		StepKey:   "SyncComponent",
+	}
+
+	// Send the same event multiple times
+	for i := 0; i < 5; i++ {
+		webRecorder.AnnotatedEventf(obj, annotations, "Normal", "ReconcileCompleted", "Test message")
+	}
+
+	// Wait for async sends to complete
+	time.Sleep(500 * time.Millisecond)
+
+	// Should only send once due to deduplication
+	count := atomic.LoadInt32(&requestCount)
+	if count != 1 {
+		t.Errorf("Expected 1 request, got %d (deduplication failed)", count)
+	}
+}
+
+func TestEventDeduplicationDifferentStatus(t *testing.T) {
+	// Track number of requests received
+	var requestCount int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&requestCount, 1)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	recorder := NewWebhookEventRecorder(server.URL, "change-123", "cluster-test")
+	webRecorder := recorder.(*WebhookEventRecorder)
+
+	obj := &testObject{name: "test-app"}
+
+	// Send events with different statuses - should NOT be deduplicated
+	annotations1 := map[string]string{
+		PhaseKey:  "Reconcile",
+		StatusKey: StatusInProgress,
+		StepKey:   "SyncComponent",
+	}
+	webRecorder.AnnotatedEventf(obj, annotations1, "Normal", "ReconcileStarted", "Starting")
+
+	annotations2 := map[string]string{
+		PhaseKey:  "Reconcile",
+		StatusKey: StatusSuccess,
+		StepKey:   "SyncComponent",
+	}
+	webRecorder.AnnotatedEventf(obj, annotations2, "Normal", "ReconcileCompleted", "Completed")
+
+	// Wait for async sends to complete
+	time.Sleep(500 * time.Millisecond)
+
+	// Should send both events (different status)
+	count := atomic.LoadInt32(&requestCount)
+	if count != 2 {
+		t.Errorf("Expected 2 requests for different statuses, got %d", count)
+	}
+}
