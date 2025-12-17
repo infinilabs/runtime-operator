@@ -37,7 +37,7 @@ import (
 
 // BuildVolumesFromConfigMaps builds corev1.Volume slices for ConfigMaps from common.ConfigMapMountSpec slices.
 func BuildVolumesFromConfigMaps(configMounts []common.ConfigMountSpec) []corev1.Volume { // Uses common.ConfigMapMountSpec
-	if configMounts == nil || len(configMounts) == 0 {
+	if len(configMounts) == 0 {
 		return []corev1.Volume{}
 	}
 
@@ -70,7 +70,7 @@ func BuildVolumesFromConfigMaps(configMounts []common.ConfigMountSpec) []corev1.
 
 // BuildVolumeMountsFromConfigMaps builds corev1.VolumeMount slices for containers from common.ConfigMapMountSpec slices.
 func BuildVolumeMountsFromConfigMaps(configMounts []common.ConfigMountSpec) []corev1.VolumeMount { // Uses common.ConfigMapMountSpec
-	if configMounts == nil || len(configMounts) == 0 {
+	if len(configMounts) == 0 {
 		return []corev1.VolumeMount{}
 	}
 
@@ -94,7 +94,7 @@ func BuildVolumeMountsFromConfigMaps(configMounts []common.ConfigMountSpec) []co
 
 // BuildVolumesFromSecrets builds corev1.Volume slices for Secrets from common.SecretMountSpec slices.
 func BuildVolumesFromSecrets(secretMounts []common.SecretMountSpec) []corev1.Volume { // Uses common.SecretMountSpec
-	if secretMounts == nil || len(secretMounts) == 0 {
+	if len(secretMounts) == 0 {
 		return []corev1.Volume{}
 	}
 
@@ -127,7 +127,7 @@ func BuildVolumesFromSecrets(secretMounts []common.SecretMountSpec) []corev1.Vol
 
 // BuildVolumeMountsFromSecrets builds corev1.VolumeMount slices for containers from common.SecretMountSpec slices.
 func BuildVolumeMountsFromSecrets(secretMounts []common.SecretMountSpec) []corev1.VolumeMount { // Uses common.SecretMountSpec
-	if secretMounts == nil || len(secretMounts) == 0 {
+	if len(secretMounts) == 0 {
 		return []corev1.VolumeMount{}
 	}
 

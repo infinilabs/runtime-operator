@@ -134,10 +134,6 @@ func (r *ApplicationDefinitionReconciler) Reconcile(ctx context.Context, req ctr
 	// DeepCopy the status for comparison later
 	state.originalStatus = state.appDef.Status.DeepCopy()
 
-	// Record reconciliation start event
-	r.recordEvent(state.appDef, "Reconcile", webrecorder.StatusInProgress, "SyncComponent",
-		corev1.EventTypeNormal, "ReconcileStarted", "Starting reconciliation")
-
 	// Initialize component status map based on current spec
 	if err := r.initializeComponentStatuses(state); err != nil {
 		// Initialization error is critical, update status and stop
@@ -255,7 +251,7 @@ func (r *ApplicationDefinitionReconciler) Reconcile(ctx context.Context, req ctr
 		"requeue", needsRequeue,
 	)
 
-	// Record reconciliation completion event
+	// Record reconciliation completion event (deduplication handled by webrecorder)
 	if state.firstError != nil {
 		r.recordEventf(state.appDef, "Reconcile", webrecorder.StatusFailure, "SyncComponent",
 			corev1.EventTypeWarning, "ReconcileFailed", "Reconciliation failed: %v", state.firstError)
@@ -530,7 +526,7 @@ func (r *ApplicationDefinitionReconciler) processComponentsAndBuildObjects(ctx c
 			err := fmt.Errorf("no builder strategy registered for component type: %s", appComp.Type)
 			logger.Error(err, "Builder strategy not found")
 			r.recordEventf(appDef, "BuildObjects", webrecorder.StatusFailure, "SyncComponent",
-				corev1.EventTypeWarning, "BuilderStrategyNotFound", err.Error())
+				corev1.EventTypeWarning, "BuilderStrategyNotFound", "%s", err.Error())
 			return err
 		}
 
@@ -549,7 +545,7 @@ func (r *ApplicationDefinitionReconciler) processComponentsAndBuildObjects(ctx c
 			err = fmt.Errorf("builder strategy failed for component %s: %w", appComp.Name, err)
 			logger.Error(err, "Builder strategy failed", "error", err)
 			r.recordEventf(appDef, "BuildObjects", webrecorder.StatusFailure, "SyncComponent",
-				corev1.EventTypeWarning, "BuilderFailed", err.Error())
+				corev1.EventTypeWarning, "BuilderFailed", "%s", err.Error())
 			return err
 		}
 
@@ -652,9 +648,9 @@ func (r *ApplicationDefinitionReconciler) applyResources(ctx context.Context, st
 			errMsg := fmt.Sprintf("Failed to set OwnerReference on %s %s: %v", gvk.Kind, objKey.String(), err)
 			logger.Error(err, errMsg)
 			r.recordEventf(appDef, "ApplyResources", webrecorder.StatusFailure, "SyncComponent",
-				corev1.EventTypeWarning, "SetOwnerRefFailed", errMsg)
+				corev1.EventTypeWarning, "SetOwnerRefFailed", "%s", errMsg)
 			if firstApplyErr == nil {
-				firstApplyErr = fmt.Errorf(errMsg) // Wrap error
+				firstApplyErr = fmt.Errorf("%s", errMsg) // Wrap error
 			}
 			state.applyResults[resultMapKey] = kubeutil.ApplyResult{Error: firstApplyErr}
 			r.updateComponentStatusForApplyError(state.componentStatuses, obj, firstApplyErr)
@@ -675,7 +671,7 @@ func (r *ApplicationDefinitionReconciler) applyResources(ctx context.Context, st
 				errMsg := fmt.Sprintf("Failed to apply resource %s %s: %v", gvk.Kind, objKey.String(), applyResult.Error)
 				logger.Error(applyResult.Error, errMsg)
 				r.recordEventf(appDef, "ApplyResources", webrecorder.StatusFailure, "SyncComponent",
-					corev1.EventTypeWarning, "ResourceApplyFailed", errMsg)
+					corev1.EventTypeWarning, "ResourceApplyFailed", "%s", errMsg)
 				if firstApplyErr == nil {
 					firstApplyErr = applyResult.Error
 				}
@@ -701,7 +697,7 @@ func (r *ApplicationDefinitionReconciler) checkHealthAndCalculateStatus(ctx cont
 	appDef := state.appDef // For convenience
 
 	for compName, compStatus := range state.componentStatuses {
-		if appDef.Spec.Components == nil || len(appDef.Spec.Components) == 0 {
+		if len(appDef.Spec.Components) == 0 {
 			continue
 		}
 		spec := appDef.Spec.Components[0]
@@ -817,8 +813,7 @@ func (r *ApplicationDefinitionReconciler) determineFinalPhase(state *reconcileSt
 		setCondition(state.appDef, metav1.Condition{Type: string(appv1.ConditionReady), Status: metav1.ConditionTrue, Reason: "ComponentsReady", Message: "All components reconciled and healthy"})
 	} else {
 		// No errors, but not all components are ready/healthy yet
-		reason := "ComponentsNotReady"
-		message := "One or more components are not ready or unhealthy"
+		var reason, message string
 
 		// Determine if it's applying or degraded
 		if currentPhase == appv1.ApplicationPhaseRunning || currentPhase == appv1.ApplicationPhaseDegraded {
@@ -1121,7 +1116,7 @@ func (r *ApplicationDefinitionReconciler) recordEvent(app *appv1.ApplicationDefi
 			webrecorder.StatusKey: status,
 			webrecorder.StepKey:   step,
 		}
-		wr.AnnotatedEventf(app, annotations, eventType, reason, message)
+		wr.AnnotatedEventf(app, annotations, eventType, reason, "%s", message)
 	} else {
 		recorder.Event(app, eventType, reason, message)
 	}

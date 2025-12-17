@@ -395,9 +395,9 @@ func init() {
 		Namespace = ns
 		return
 	}
-	if n, err := getInClusterNamespace(); err != nil {
-		panic(err)
-	} else {
+	// Try to get namespace from in-cluster config, but don't panic if not in cluster
+	if n, err := getInClusterNamespace(); err == nil {
 		Namespace = n
 	}
+	// If not in cluster (e.g., running tests), keep default namespace
 }
