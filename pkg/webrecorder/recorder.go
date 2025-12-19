@@ -36,7 +36,7 @@ const (
 	// StatusSuccess indicates that an operation or step completed successfully.
 	StatusSuccess = "success"
 	// StatusFailure indicates that an operation or step failed.
-	StatusFailure = "failure"
+	StatusFailure = "failed"
 	// StatusInProgress indicates that an operation or step is currently underway.
 	StatusInProgress = "in_progress"
 )
