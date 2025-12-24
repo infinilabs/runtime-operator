@@ -711,11 +711,11 @@ func (r *ApplicationDefinitionReconciler) applyResources(ctx context.Context, st
 			// Use "Sync" prefix for step names to match SyncComponent convention
 			var eventMessage, eventReason, stepName string
 			switch applyResult.Operation {
-			case "created":
+			case controllerutil.OperationResultCreated:
 				eventMessage = fmt.Sprintf("Created %s: %s", gvk.Kind, objKey.Name)
 				eventReason = "ResourceCreated"
 				stepName = fmt.Sprintf("Sync%s", gvk.Kind) // e.g., SyncConfigMap, SyncService
-			case "configured", "updated":
+			case controllerutil.OperationResultUpdated:
 				eventMessage = fmt.Sprintf("Updated %s: %s", gvk.Kind, objKey.Name)
 				eventReason = "ResourceUpdated"
 				stepName = fmt.Sprintf("Sync%s", gvk.Kind) // e.g., SyncConfigMap, SyncService

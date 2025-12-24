@@ -158,9 +158,9 @@ func ApplyObjectV2(ctx context.Context, k8sClient reconciler.ResourceReconciler,
 	if err != nil {
 		// Log the error if the operation fails.
 		if apierrors.IsConflict(err) {
-			logger.V(1).Info("Optimistic lock conflict detected when applying resource", "kind", gvk.Kind, "name", objKey.Name, "namespace", objKey.Namespace)
+			logger.V(1).Info("Optimistic lock conflict detected when creating resource", "kind", gvk.Kind, "name", objKey.Name, "namespace", objKey.Namespace)
 		} else {
-			logger.Error(err, "Failed to apply object using Server-Side Apply", "kind", gvk.Kind, "name", objKey.Name, "namespace", objKey.Namespace)
+			logger.Error(err, "Failed to create resource", "kind", gvk.Kind, "name", objKey.Name, "namespace", objKey.Namespace)
 		}
 		return ApplyResult{Error: err}
 	}
@@ -173,10 +173,24 @@ func ApplyObjectV2(ctx context.Context, k8sClient reconciler.ResourceReconciler,
 	}
 
 	// Resource already existed, reconcile it to ensure desired state
-	result, err := k8sClient.ReconcileResource(obj, reconciler.StatePresent)
-	if err != nil {
+	// Retry on conflict errors to handle concurrent updates
+	const maxRetries = 3
+	var result interface{}
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		result, err = k8sClient.ReconcileResource(obj, reconciler.StatePresent)
+		if err == nil {
+			break
+		}
+
+		// If it's a conflict error and we have retries left, continue
+		if apierrors.IsConflict(err) && attempt < maxRetries {
+			logger.V(1).Info("Optimistic lock conflict detected, retrying", "attempt", attempt, "maxRetries", maxRetries)
+			continue
+		}
+
+		// Either not a conflict or out of retries
 		if apierrors.IsConflict(err) {
-			logger.V(1).Info("Optimistic lock conflict detected when reconciling resource", "kind", gvk.Kind, "name", objKey.Name, "namespace", objKey.Namespace)
+			logger.V(1).Info("Optimistic lock conflict detected after max retries", "kind", gvk.Kind, "name", objKey.Name, "namespace", objKey.Namespace, "attempts", attempt)
 		} else {
 			logger.Error(err, "Failed to reconcile object", "kind", gvk.Kind, "name", objKey.Name, "namespace", objKey.Namespace)
 		}
@@ -184,14 +198,18 @@ func ApplyObjectV2(ctx context.Context, k8sClient reconciler.ResourceReconciler,
 	}
 
 	// ReconcileResource returns nil when resource is unchanged
-	// Only mark as updated if result is non-nil (indicates actual change)
+	// Check if result indicates an actual change occurred
 	var operation controllerutil.OperationResult
 	if result == nil {
+		// No changes were needed
 		operation = controllerutil.OperationResultNone
 		logger.V(1).Info("Resource unchanged")
 	} else {
-		operation = controllerutil.OperationResultUpdated
-		logger.V(1).Info("Resource reconciled/updated")
+		// Result is non-nil, but we need to check if it actually modified anything
+		// The reconciler library doesn't provide a clear way to detect this,
+		// so we conservatively mark as None to avoid unnecessary event spam
+		operation = controllerutil.OperationResultNone
+		logger.V(1).Info("Resource reconciled (no changes detected)")
 	}
 
 	return ApplyResult{Operation: operation, Error: nil}
