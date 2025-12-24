@@ -153,9 +153,10 @@ func ApplyObjectV2(ctx context.Context, k8sClient reconciler.ResourceReconciler,
 	)
 	logger.V(1).Info("Attempting to apply object using Server-Side Apply")
 
-	_, err := k8sClient.ReconcileResource(obj, reconciler.StatePresent)
+	// Check if resource exists before reconciliation
+	created, _, err := k8sClient.CreateIfNotExist(obj, reconciler.StatePresent)
 	if err != nil {
-		// Log the error if the apply operation fails.
+		// Log the error if the operation fails.
 		if apierrors.IsConflict(err) {
 			logger.V(1).Info("Optimistic lock conflict detected when applying resource", "kind", gvk.Kind, "name", objKey.Name, "namespace", objKey.Namespace)
 		} else {
@@ -164,9 +165,36 @@ func ApplyObjectV2(ctx context.Context, k8sClient reconciler.ResourceReconciler,
 		return ApplyResult{Error: err}
 	}
 
-	logger.V(1).Info("Patch call succeeded")
+	// If resource was just created, return immediately without reconciling
+	// This avoids conflicts with other controllers that may be updating the resource
+	if created {
+		logger.V(1).Info("Resource created")
+		return ApplyResult{Operation: controllerutil.OperationResultCreated, Error: nil}
+	}
 
-	return ApplyResult{Operation: controllerutil.OperationResultNone, Error: nil}
+	// Resource already existed, reconcile it to ensure desired state
+	result, err := k8sClient.ReconcileResource(obj, reconciler.StatePresent)
+	if err != nil {
+		if apierrors.IsConflict(err) {
+			logger.V(1).Info("Optimistic lock conflict detected when reconciling resource", "kind", gvk.Kind, "name", objKey.Name, "namespace", objKey.Namespace)
+		} else {
+			logger.Error(err, "Failed to reconcile object", "kind", gvk.Kind, "name", objKey.Name, "namespace", objKey.Namespace)
+		}
+		return ApplyResult{Error: err}
+	}
+
+	// ReconcileResource returns nil when resource is unchanged
+	// Only mark as updated if result is non-nil (indicates actual change)
+	var operation controllerutil.OperationResult
+	if result == nil {
+		operation = controllerutil.OperationResultNone
+		logger.V(1).Info("Resource unchanged")
+	} else {
+		operation = controllerutil.OperationResultUpdated
+		logger.V(1).Info("Resource reconciled/updated")
+	}
+
+	return ApplyResult{Operation: operation, Error: nil}
 }
 
 // BuildObjectResultMapKey creates a unique string key for the applyResults map.
