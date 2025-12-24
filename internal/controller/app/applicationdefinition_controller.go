@@ -175,6 +175,16 @@ func (r *ApplicationDefinitionReconciler) Reconcile(ctx context.Context, req ctr
 	}
 	// If suspended but phase not yet set, continue to apply the suspend logic below
 
+	// 3.6. Fast path: Skip reconciliation if already Running and no spec changes
+	if state.appDef.Status.Phase == appv1.ApplicationPhaseRunning &&
+		state.appDef.Status.ObservedGeneration == state.appDef.Generation &&
+		state.appDef.Status.LastChangeID != "" &&
+		state.appDef.Annotations[appv1.AnnotationChangeID] == state.appDef.Status.LastChangeID {
+		// Application is stable and running, no spec changes detected
+		logger.V(1).Info("Application stable and running, skipping reconciliation")
+		return ctrl.Result{}, nil
+	}
+
 	// 4. Process components: Unmarshal Config, Dispatch to Builder Strategy, Build Objects
 	processErr := r.processComponentsAndBuildObjects(ctx, state)
 	if processErr != nil {
@@ -220,6 +230,19 @@ func (r *ApplicationDefinitionReconciler) Reconcile(ctx context.Context, req ctr
 	r.determineFinalPhase(state, allReady)                                              // Update phase based on errors and readiness
 	state.appDef.Status.Components = mapToSliceComponentStatus(state.componentStatuses) // Update components status list
 
+	// Record reconciliation completion event BEFORE updating LastChangeID
+	// This ensures the webhook event is sent before the change ID is marked as processed
+	if state.firstError != nil {
+		r.recordEventf(state.appDef, "Reconcile", webrecorder.StatusFailure, "SyncComponent",
+			corev1.EventTypeWarning, "ReconcileFailed", "Reconciliation failed: %v", state.firstError)
+	} else if allReady {
+		r.recordEvent(state.appDef, "Reconcile", webrecorder.StatusSuccess, "SyncComponent",
+			corev1.EventTypeNormal, "ReconcileCompleted", "Reconciliation completed successfully, all components ready")
+	} else {
+		r.recordEvent(state.appDef, "Reconcile", webrecorder.StatusInProgress, "SyncComponent",
+			corev1.EventTypeNormal, "ReconcileProgressing", "Reconciliation in progress, waiting for components to be ready")
+	}
+
 	// Update LastChangeID in status if reconciliation was successful
 	if allReady && state.firstError == nil {
 		if changeID, exists := state.appDef.Annotations[appv1.AnnotationChangeID]; exists && changeID != "" {
@@ -245,22 +268,26 @@ func (r *ApplicationDefinitionReconciler) Reconcile(ctx context.Context, req ctr
 
 	// 8. Log result and return
 	reconciliationDuration := time.Since(startTime)
-	logger.Info("Reconciliation completed",
-		"duration", reconciliationDuration.String(),
-		"phase", state.appDef.Status.Phase,
-		"requeue", needsRequeue,
-	)
 
-	// Record reconciliation completion event (deduplication handled by webrecorder)
-	if state.firstError != nil {
-		r.recordEventf(state.appDef, "Reconcile", webrecorder.StatusFailure, "SyncComponent",
-			corev1.EventTypeWarning, "ReconcileFailed", "Reconciliation failed: %v", state.firstError)
-	} else if allReady {
-		r.recordEvent(state.appDef, "Reconcile", webrecorder.StatusSuccess, "SyncComponent",
-			corev1.EventTypeNormal, "ReconcileCompleted", "Reconciliation completed successfully, all components ready")
+	// Only log info when there's something meaningful (phase change or completion)
+	if allReady && state.firstError == nil {
+		logger.Info("Reconciliation completed successfully",
+			"duration", reconciliationDuration.String(),
+			"phase", state.appDef.Status.Phase,
+		)
+	} else if state.firstError != nil {
+		logger.Info("Reconciliation completed with errors",
+			"duration", reconciliationDuration.String(),
+			"phase", state.appDef.Status.Phase,
+			"error", state.firstError.Error(),
+		)
 	} else {
-		r.recordEvent(state.appDef, "Reconcile", webrecorder.StatusInProgress, "SyncComponent",
-			corev1.EventTypeNormal, "ReconcileProgressing", "Reconciliation in progress, waiting for components to be ready")
+		// Still in progress, use V(1) to reduce noise
+		logger.V(1).Info("Reconciliation in progress",
+			"duration", reconciliationDuration.String(),
+			"phase", state.appDef.Status.Phase,
+			"requeue", needsRequeue,
+		)
 	}
 
 	if needsRequeue {
@@ -367,13 +394,13 @@ func (r *ApplicationDefinitionReconciler) handleFinalizer(ctx context.Context, s
 	if appDef.ObjectMeta.DeletionTimestamp.IsZero() {
 		// Object is NOT being deleted
 		if !controllerutil.ContainsFinalizer(appDef, appDefFinalizer) {
-			logger.Info("Adding Finalizer")
+			logger.V(1).Info("Adding Finalizer")
 			controllerutil.AddFinalizer(appDef, appDefFinalizer)
 			// Retry loop for adding finalizer
 			for i := 0; i < 3; i++ {
 				if err := r.Client.Update(ctx, appDef); err != nil {
 					if apierrors.IsConflict(err) {
-						logger.Info("Conflict adding finalizer, retrying...", "attempt", i+1)
+						logger.V(1).Info("Conflict adding finalizer, retrying...", "attempt", i+1)
 						// Re-fetch the latest version
 						if fetchErr := r.Client.Get(ctx, client.ObjectKeyFromObject(appDef), appDef); fetchErr != nil {
 							logger.Error(fetchErr, "Failed to re-fetch appDef after conflict")
@@ -430,7 +457,7 @@ func (r *ApplicationDefinitionReconciler) handleFinalizer(ctx context.Context, s
 			for i := 0; i < 3; i++ {
 				if err := r.Client.Update(ctx, appDef); err != nil {
 					if apierrors.IsConflict(err) {
-						logger.Info("Conflict removing finalizer, retrying...", "attempt", i+1)
+						logger.V(1).Info("Conflict removing finalizer, retrying...", "attempt", i+1)
 						// Re-fetch the latest version
 						if fetchErr := r.Client.Get(ctx, client.ObjectKeyFromObject(appDef), appDef); fetchErr != nil {
 							logger.Error(fetchErr, "Failed to re-fetch appDef after conflict")
@@ -474,7 +501,7 @@ func (r *ApplicationDefinitionReconciler) setInitialPhase(ctx context.Context, s
 			if err != nil {
 				if apierrors.IsConflict(err) {
 					logger := log.FromContext(ctx)
-					logger.Info("Conflict updating status in setInitialPhase, retrying...", "attempt", i+1)
+					logger.V(1).Info("Conflict updating status in setInitialPhase, retrying...", "attempt", i+1)
 					// Re-fetch the latest status
 					if fetchErr := r.Client.Get(ctx, client.ObjectKeyFromObject(state.appDef), state.appDef); fetchErr != nil {
 						logger.Error(fetchErr, "Failed to re-fetch appDef after status update conflict")
@@ -679,6 +706,31 @@ func (r *ApplicationDefinitionReconciler) applyResources(ctx context.Context, st
 			}
 		} else {
 			logger.V(1).Info("Successfully applied resource", "kind", gvk.Kind, "name", objKey.String(), "operation", applyResult.Operation)
+
+			// Record webhook event for resource creation/update
+			// Use "Sync" prefix for step names to match SyncComponent convention
+			var eventMessage, eventReason, stepName string
+			switch applyResult.Operation {
+			case controllerutil.OperationResultCreated:
+				eventMessage = fmt.Sprintf("Created %s: %s", gvk.Kind, objKey.Name)
+				eventReason = "ResourceCreated"
+				stepName = fmt.Sprintf("Sync%s", gvk.Kind) // e.g., SyncConfigMap, SyncService
+			case controllerutil.OperationResultUpdated:
+				eventMessage = fmt.Sprintf("Updated %s: %s", gvk.Kind, objKey.Name)
+				eventReason = "ResourceUpdated"
+				stepName = fmt.Sprintf("Sync%s", gvk.Kind) // e.g., SyncConfigMap, SyncService
+			default:
+				// Unchanged resources - don't send events
+				stepName = ""
+				logger.V(1).Info("Resource unchanged", "kind", gvk.Kind, "name", objKey.Name, "operation", applyResult.Operation)
+			}
+
+			// Only send webhook events for actual creates/updates
+			if stepName != "" {
+				logger.V(1).Info("Sending resource event", "kind", gvk.Kind, "name", objKey.Name, "operation", applyResult.Operation, "step", stepName)
+				r.recordEvent(appDef, "ApplyResources", webrecorder.StatusSuccess, stepName,
+					corev1.EventTypeNormal, eventReason, eventMessage)
+			}
 		}
 	}
 
@@ -774,7 +826,10 @@ func (r *ApplicationDefinitionReconciler) checkHealthAndCalculateStatus(ctx cont
 		// --- 2. Check Application-Level Health (if K8s resource is healthy) ---
 		compLogger.V(1).Info("K8s resource is healthy, proceeding to application-level health check")
 
-		return true, false, firstCheckErr
+		// Mark this component as healthy
+		compStatus.Health = true
+		compStatus.Message = "Component is ready and healthy"
+		compLogger.V(1).Info("Component health check passed")
 	}
 
 	return allComponentsReady, needsRequeue, firstCheckErr
@@ -815,15 +870,20 @@ func (r *ApplicationDefinitionReconciler) determineFinalPhase(state *reconcileSt
 		// No errors, but not all components are ready/healthy yet
 		var reason, message string
 
-		// Determine if it's applying or degraded
+		// Determine if it's creating, updating, or degraded
 		if currentPhase == appv1.ApplicationPhaseRunning || currentPhase == appv1.ApplicationPhaseDegraded {
-			// Was previously Available or Degraded, now not ready -> Degraded
+			// Was previously Running or Degraded, now not ready -> Degraded
 			state.appDef.Status.Phase = appv1.ApplicationPhaseDegraded
 			reason = "ComponentsDegraded"
 			message = "One or more previously ready components are now unhealthy or not ready"
+		} else if currentPhase == appv1.ApplicationPhaseCreating {
+			// Keep Creating phase until components are ready for the first time
+			state.appDef.Status.Phase = appv1.ApplicationPhaseCreating
+			reason = "ComponentsCreating"
+			message = "Waiting for components to become ready for the first time"
 		} else {
-			// Still in initial phases (Processing, Applying) or recovering from Failed
-			state.appDef.Status.Phase = appv1.ApplicationPhaseUpdateing // Or keep Processing if appropriate? Applying seems better.
+			// Previously in Updating, Failed, or other transitional state
+			state.appDef.Status.Phase = appv1.ApplicationPhaseUpdateing
 			reason = "ComponentsApplying"
 			message = "Waiting for components to become ready and healthy"
 		}
@@ -883,7 +943,7 @@ func (r *ApplicationDefinitionReconciler) updateStatusIfNeeded(ctx context.Conte
 	for i := 0; i < 3; i++ {
 		if err := r.Client.Status().Update(ctx, currentApp); err != nil {
 			if apierrors.IsConflict(err) {
-				logger.Info("Status update conflict detected, retrying...", "attempt", i+1, "error", err.Error())
+				logger.V(1).Info("Status update conflict, retrying...", "attempt", i+1)
 				// Re-fetch the latest version
 				if fetchErr := r.Client.Get(ctx, client.ObjectKeyFromObject(currentApp), currentApp); fetchErr != nil {
 					logger.Error(fetchErr, "Failed to re-fetch appDef after status update conflict")

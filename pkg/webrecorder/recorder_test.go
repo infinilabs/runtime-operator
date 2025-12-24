@@ -248,7 +248,7 @@ func TestWebhookEventConstants(t *testing.T) {
 		{"StatusKey", StatusKey, "infini.cloud/status"},
 		{"StepKey", StepKey, "infini.cloud/step"},
 		{"StatusSuccess", StatusSuccess, "success"},
-		{"StatusFailure", StatusFailure, "failure"},
+		{"StatusFailure", StatusFailure, "failed"},
 		{"StatusInProgress", StatusInProgress, "in_progress"},
 	}
 

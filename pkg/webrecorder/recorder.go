@@ -310,7 +310,7 @@ func (r *WebhookEventRecorder) sendEvent(data *WebhookEvent) {
 
 		// On successful send, check the status code.
 		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-			r.logger.Info("Successfully sent event to webhook", "url", r.webhookURL, "status", resp.Status)
+			r.logger.V(1).Info("Successfully sent event to webhook", "url", r.webhookURL, "status", resp.Status)
 			return // Success, exit the function.
 		}
 
