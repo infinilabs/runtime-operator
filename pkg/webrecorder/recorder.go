@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -123,13 +124,19 @@ type WebhookEventRecorder struct {
 // It requires a webhookURL, identifiers for the event source (eventID) and cluster (clusterID),
 // and an existing recorder (typically from the controller-runtime manager) to wrap.
 func NewWebhookEventRecorder(webhookURL, eventID, clusterID string) record.EventRecorder {
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: true,
+		},
+	}
 	wr := &WebhookEventRecorder{
 		webhookURL: webhookURL,
 		eventID:    eventID,
 		clusterID:  clusterID,
 		logger:     log.Log.WithName("Web Event Recorder"),
 		httpClient: &http.Client{
-			Timeout: 15 * time.Second,
+			Transport: tr,
+			Timeout:   15 * time.Second,
 		},
 		eventTTL: 1 * time.Hour, // Keep track of sent events for 1 hour
 	}
