@@ -1,8 +1,8 @@
 module github.com/infinilabs/runtime-operator
 
-go 1.23.0
+go 1.25.0
 
-godebug default=go1.23
+godebug default=go1.25
 
 require (
 	github.com/cisco-open/operator-tools v0.37.0
